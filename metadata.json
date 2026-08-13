@@ -1,0 +1,7 @@
+{
+  "name": "MedAgendar - Excelência em Agendamento Médico",
+  "description": "Uma plataforma completa para busca e agendamento de consultas médicas, com painéis para profissionais e administração.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

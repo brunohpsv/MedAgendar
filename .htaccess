@@ -1,0 +1,26 @@
+# Cache Control for MedAgendar
+# This file is optimized for Apache servers (like InfinityFree)
+
+# 1. Prevent caching of the main HTML file
+<FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+</FilesMatch>
+
+# 2. Allow caching of static assets with versioning
+<FilesMatch "\.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+
+# 3. Handle Cache Busting via Query Strings
+# (Most modern browsers and CDNs handle query strings automatically)
+
+# 4. Disable ETag to prevent conditional caching
+Header unset ETag
+FileETag None
+
+# 5. Security Headers (Optional but recommended)
+Header set X-Content-Type-Options "nosniff"
+Header set X-Frame-Options "SAMEORIGIN"
+Header set X-XSS-Protection "1; mode=block"

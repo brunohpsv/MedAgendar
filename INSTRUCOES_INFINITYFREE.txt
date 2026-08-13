@@ -1,0 +1,23 @@
+COMO COLOCAR O SITE NO INFINITYFREE (MÉTODO SIMPLES E RÁPIDO)
+
+ESTE PROJETO FOI OTIMIZADO PARA FUNCIONAR EM UM ÚNICO ARQUIVO.
+
+PASSO A PASSO:
+1. Baixe o arquivo "index.html" que está na raiz deste projeto.
+2. Baixe também o arquivo ".htaccess" (ele serve para que os links funcionem corretamente).
+3. Acesse o Painel do InfinityFree (app.infinityfree.com).
+4. Clique em "Control Panel" do seu domínio.
+5. Procure por "Online File Manager" ou use um cliente FTP (como FileZilla).
+6. Entre na pasta "htdocs".
+7. APAGUE todos os arquivos que existirem lá dentro (como index2.php ou pastas padrão).
+8. Faça o UPLOAD do seu "index.html" e do seu ".htaccess" para dentro da "htdocs".
+9. PRONTO! Seu site já está no ar.
+
+POR QUE ESTE MÉTODO É MELHOR?
+- Arquivo Único: Tudo (React, Design, Lógica) está no index.html.
+- Sem Complicação: Não precisa rodar comandos como "npm install" ou "npm build".
+- Carregamento Rápido: O site usa CDNs para carregar o React e o Tailwind CSS instantaneamente.
+- Manutenção Fácil: Para atualizar o site, basta editar o código aqui, baixar o index.html novo e substituir o antigo no servidor.
+
+DICA DE SEGURANÇA:
+Lembre-se de anotar sua SENHA MASTER do Admin que está definida no início do arquivo index.html.

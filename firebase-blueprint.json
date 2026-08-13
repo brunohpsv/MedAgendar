@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Professional healthcare provider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "crm": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "isClinic": { "type": "boolean" },
+        "professionals": { "type": "array" },
+        "clinics": { "type": "array", "items": { "type": "string" } },
+        "specialties": { "type": "array", "items": { "type": "string" } },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "address": { "type": "string" },
+        "onlineConsultation": { "type": "boolean" },
+        "image": { "type": "string", "format": "uri" },
+        "bio": { "type": "string" },
+        "price": { "type": "number" },
+        "workConfig": { "type": "object" },
+        "schedule": { "type": "array" },
+        "accessCode": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "crm", "accessCode"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Medical appointment booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientPhone": { "type": "string" },
+        "patientCPF": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "doctorId", "patientCPF", "status"]
+    }
+  },
+  "firestore": {
+    "/doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Collection of medical professionals"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Collection of patient appointments"
+    }
+  }
+}

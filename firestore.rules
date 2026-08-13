@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: doctors
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - crm: string (optional if PJ)
+    //   - cnpj: string (optional if PF)
+    //   - isClinic: bool (required)
+    //   - professionals: list (optional)
+    //   - specialties: list (required)
+    //   - city: string (required)
+    //   - state: string (required)
+    //   - address: string (required)
+    //   - onlineConsultation: bool (required)
+    //   - image: string (required)
+    //   - bio: string (required)
+    //   - price: number (required)
+    //   - workConfig: map (required)
+    //   - schedule: list (required)
+    //   - accessCode: string (required)
+    //   - paymentStatus: string (required)
+    //   - status: string (required)
+    //   - createdAt: string (required)
+    //
+    // Collection: appointments
+    // Fields:
+    //   - id: string (required)
+    //   - doctorId: string (required)
+    //   - doctorName: string (required)
+    //   - date: string (required)
+    //   - time: string (required)
+    //   - patientName: string (required)
+    //   - patientPhone: string (required)
+    //   - patientCPF: string (required)
+    //   - status: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "brunohpsv@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidDoctor(data) {
+      return data.keys().hasAll(['id', 'name', 'accessCode', 'status', 'isClinic']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.accessCode is string && data.accessCode.size() > 0 && data.accessCode.size() < 50 &&
+             data.status in ['active', 'pending', 'suspended'] &&
+             (
+               (data.crm is string && (data.crm.size() > 0 || data.isClinic)) ||
+               (data.cnpj is string && (data.cnpj.size() > 0 || !data.isClinic))
+             ) &&
+             data.bio is string && data.bio.size() < 5000 &&
+             data.image is string && data.image.size() < 1000000; // Allow base64 images up to 1MB
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['id', 'doctorId', 'patientCPF', 'status']) &&
+             data.doctorId is string &&
+             data.patientCPF is string &&
+             data.status in ['confirmed', 'cancelled'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /doctors/{doctorId} {
+      // Allow public to read doctor profiles for booking
+      allow read: if true;
+      
+      // Allow signup
+      allow create: if isValidDoctor(request.resource.data);
+      
+      // Allow updates (Doctor profile or Admin suspension)
+      // Note: In this specific implementation, we allow updates without formal Auth
+      // to satisfy the user's request for password-only admin access.
+      allow update: if isValidDoctor(request.resource.data);
+      
+      // Allow deletion
+      allow delete: if true;
+    }
+
+    match /system/{docId} {
+      // Allow reading and writing to system config for initialization
+      allow read, write: if true;
+    }
+
+    match /appointments/{appointmentId} {
+      // Allow anyone to read to check availability or find their own
+      allow read: if true;
+      
+      // Allow anyone to book
+      allow create: if isValidAppointment(request.resource.data);
+      
+      // Allow update (cancel)
+      allow update: if isValidAppointment(request.resource.data);
+      
+      // Allow deletion (Admin use case without Auth)
+      allow delete: if true;
+    }
+
+    match /support_messages/{msgId} {
+      // Allow professionals and admin to communicate via support chat
+      allow read, write: if true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId || isAdmin();
+    }
+  }
+}
