@@ -50,21 +50,7 @@ export const Home = ({ doctors, onSelectDoctor, selectedDoctorId }: HomeProps) =
 
       {/* Seção Parceiro Prominente */}
       <section className="lg:max-w-none mx-auto px-4 lg:px-8 py-10 lg:py-16 border-t border-slate-100">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-          <div>
-            <PartnerSection />
-          </div>
-          <div className="space-y-6">
-            <h2 className="text-4xl font-black uppercase tracking-tighter">JUNTE-SE À <br/><span className="text-red-600">MAIOR REDE</span> DE SAÚDE</h2>
-            <p className="text-slate-500 font-medium leading-relaxed">Nossa plataforma conecta milhares de pacientes a profissionais qualificados todos os dias. Tenha sua agenda organizada e sua visibilidade aumentada com o MedAgendar.</p>
-            <button 
-              onClick={() => window.location.hash = '#professional_signup'}
-              className="px-10 py-5 bg-red-600 text-white font-black uppercase text-xs tracking-widest hover:bg-red-700 transition-all shadow-lg active-scale"
-            >
-              QUERO SER PARCEIRO AGORA
-            </button>
-          </div>
-        </div>
+        <PartnerSection />
       </section>
     </div>
   );

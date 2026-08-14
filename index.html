@@ -259,6 +259,100 @@
             return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
         };
 
+        // --- WHATSAPP NOTIFICATIONS CONFIG & HELPERS ---
+        const OFFICIAL_WHATSAPP_NUMBER = "+55 62 98159-6601";
+        const OFFICIAL_WHATSAPP_RAW = "5562981596601";
+
+        const cleanPhoneForWhatsApp = (phone) => {
+            if (!phone) return '';
+            let digits = String(phone).replace(/\D/g, '');
+            if (!digits) return '';
+            if (digits.length === 10 || digits.length === 11) {
+                digits = '55' + digits;
+            } else if (digits.length === 8 || digits.length === 9) {
+                digits = '5562' + digits;
+            }
+            return digits;
+        };
+
+        const formatFriendlyDate = (dateStr) => {
+            if (!dateStr) return '';
+            if (dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+            }
+            return dateStr;
+        };
+
+        const buildAppointmentCreatedMessage = ({ patientName, doctorName, professionalName, date, time, address, city, state }) => {
+            const profDisplay = professionalName ? `${professionalName} (${doctorName})` : doctorName;
+            const locationParts = [address, city, state].filter(Boolean).join(', ') || 'Consultório / Clínica';
+            const formattedDate = formatFriendlyDate(date);
+
+            return `🏥 *MEDAGENDAR - CONFIRMAÇÃO DE AGENDAMENTO*\n\n` +
+                   `Olá, *${patientName || 'Paciente'}*!\n` +
+                   `Seu agendamento de consulta foi realizado com sucesso.\n\n` +
+                   `📋 *DETALHES DA CONSULTA:*\n` +
+                   `👨‍⚕️ *Profissional:* ${profDisplay}\n` +
+                   `📅 *Data:* ${formattedDate}\n` +
+                   `⏰ *Horário:* ${time}\n` +
+                   `📍 *Local:* ${locationParts}\n\n` +
+                   `📲 *Central Oficial de Atendimento (WhatsApp):* ${OFFICIAL_WHATSAPP_NUMBER}\n\n` +
+                   `Você pode consultar seus agendamentos a qualquer momento em nosso site:\n` +
+                   `${window.location.origin}${window.location.pathname}#consult_appointments`;
+        };
+
+        const buildAppointmentCancelledMessage = ({ patientName, doctorName, professionalName, date, time, address, city, state }) => {
+            const profDisplay = professionalName ? `${professionalName} (${doctorName})` : doctorName;
+            const locationParts = [address, city, state].filter(Boolean).join(', ') || 'Consultório / Clínica';
+            const formattedDate = formatFriendlyDate(date);
+
+            return `⚠️ *MEDAGENDAR - AVISO DE CANCELAMENTO*\n\n` +
+                   `Olá, *${patientName || 'Paciente'}*.\n\n` +
+                   `Informamos que sua consulta com *${profDisplay}* marcada para *${formattedDate}* às *${time}* foi *CANCELADA*.\n\n` +
+                   `📍 *Local:* ${locationParts}\n\n` +
+                   `Para remarcar ou tirar dúvidas, envie uma mensagem para nossa central oficial de atendimento (*${OFFICIAL_WHATSAPP_NUMBER}*) ou acesse:\n` +
+                   `${window.location.origin}${window.location.pathname}`;
+        };
+
+        const buildAppointmentRescheduledMessage = ({ patientName, doctorName, professionalName, oldDate, oldTime, newDate, newTime, address, city, state }) => {
+            const profDisplay = professionalName ? `${professionalName} (${doctorName})` : doctorName;
+            const locationParts = [address, city, state].filter(Boolean).join(', ') || 'Consultório / Clínica';
+            const formattedNewDate = formatFriendlyDate(newDate);
+
+            return `🔄 *MEDAGENDAR - CONSULTA REAGENDADA*\n\n` +
+                   `Olá, *${patientName || 'Paciente'}*!\n\n` +
+                   `Sua consulta com *${profDisplay}* foi *REAGENDADA* com sucesso.\n\n` +
+                   `📋 *NOVO HORÁRIO CONFIRMADO:*\n` +
+                   `👨‍⚕️ *Profissional:* ${profDisplay}\n` +
+                   `📅 *Nova Data:* ${formattedNewDate}\n` +
+                   `⏰ *Novo Horário:* ${newTime}\n` +
+                   `📍 *Local:* ${locationParts}\n\n` +
+                   `📲 *Central Oficial de Atendimento (WhatsApp):* ${OFFICIAL_WHATSAPP_NUMBER}\n\n` +
+                   `Consulte os detalhes na plataforma:\n` +
+                   `${window.location.origin}${window.location.pathname}#consult_appointments`;
+        };
+
+        const getWhatsAppSendUrl = (phone, text) => {
+            const cleanPhone = cleanPhoneForWhatsApp(phone);
+            if (!cleanPhone) return '';
+            return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
+        };
+
+        const sendWhatsAppNotification = (phone, text, openWindow = true) => {
+            const url = getWhatsAppSendUrl(phone, text);
+            if (url && openWindow) {
+                try {
+                    window.open(url, '_blank');
+                } catch (e) {
+                    console.error("WhatsApp popup blocked:", e);
+                }
+            }
+            return url;
+        };
+
         const generateScheduleFromConfig = (config) => {
             if (!config || !config.daysOfWeek) return [];
             const schedule = [];
@@ -430,24 +524,113 @@
         );
 
         const PartnerSection = () => (
-            <div className="bg-white p-6 lg:p-4 text-slate-900 border-2 border-slate-200 border-b-4 border-red-600 shadow-xl">
-                <h2 className="text-2xl lg:text-xl font-black uppercase tracking-tighter mb-4">Por que ser <br/><span className="text-red-600">Parceiro?</span></h2>
+            <div className="bg-white p-6 lg:p-5 text-slate-900 border-2 border-slate-200 border-b-4 border-red-600 shadow-xl space-y-5">
+                <div className="border-b border-slate-100 pb-3">
+                    <h2 className="text-2xl lg:text-xl font-black uppercase tracking-tighter leading-tight">Por que ser <br/><span className="text-red-600">Parceiro?</span></h2>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-1">Conheça as vantagens exclusivas da plataforma MedAgendar</p>
+                </div>
+
                 <div className="space-y-4">
                     <div>
-                        <h3 className="text-[12px] font-black uppercase text-red-600 tracking-widest mb-1">Quem deve se cadastrar?</h3>
-                        <p className="text-slate-900 text-[12px] font-medium leading-relaxed">Médicos, dentistas, fisioterapeutas, psicólogos e clínicas que buscam automatizar seus agendamentos.</p>
+                        <h3 className="text-xs font-black uppercase text-red-600 tracking-wider mb-1 flex items-center gap-1.5">
+                            <i className="fas fa-user-md text-slate-900"></i> Quem deve se cadastrar?
+                        </h3>
+                        <p className="text-slate-700 text-xs font-medium leading-relaxed">
+                            Médicos de todas as especialidades, dentistas, psicólogos, fisioterapeutas, nutricionistas e clínicas/policlínicas (PF e PJ) que desejam modernizar e automatizar seu fluxo de atendimento.
+                        </p>
                     </div>
+
                     <div>
-                        <h3 className="text-[12px] font-black uppercase text-red-600 tracking-widest mb-1">Investimento</h3>
-                        <p className="text-slate-900 text-[12px] font-medium leading-relaxed">Mensalidade única de <span className="text-slate-900 font-black">R$ 30,00</span>.</p>
+                        <h3 className="text-xs font-black uppercase text-red-600 tracking-wider mb-2 flex items-center gap-1.5">
+                            <i className="fas fa-star text-slate-900"></i> Vantagens Oferecidas pelo MedAgendar
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-bullhorn text-red-600 text-[10px]"></i> Alta Visibilidade
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Apareça em destaque nas buscas por especialidade, nome e cidade para novos pacientes todos os dias.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-clock text-red-600 text-[10px]"></i> Agendamento Online 24/7
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Pacientes agendam consultas a qualquer horário de forma autônoma, sem sobrecarregar a recepção.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-percent text-red-600 text-[10px]"></i> Zero Comissão por Consulta
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    100% do valor da sua consulta é seu. Não cobramos taxas percentuais sobre seus atendimentos.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-calendar-check text-red-600 text-[10px]"></i> Agenda Inteligente & Live Sync
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Configure horários, intervalos, limites por horário, regras de bloqueio e sincronização instantânea.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-hospital-user text-red-600 text-[10px]"></i> Gestão Multi-Profissional
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Para clínicas (PJ): gerencie múltiplos médicos com senhas e agendas exclusivas em um único painel.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-map-marked-alt text-red-600 text-[10px]"></i> Rotas & Google Maps
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Botão "Como Chegar" com rotas automáticas via Google Maps para orientar o paciente até seu endereço.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-ban text-red-600 text-[10px]"></i> Redução de Faltas
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Sistema de consulta e cancelamento rápido pelo CPF do paciente, liberando horários vagos de imediato.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-sm">
+                                <div className="font-black text-[11px] uppercase text-slate-900 flex items-center gap-1.5 mb-1">
+                                    <i className="fas fa-headset text-red-600 text-[10px]"></i> Suporte & Gestão de Anexos
+                                </div>
+                                <p className="text-[11px] text-slate-600 font-medium leading-snug">
+                                    Canal de chat direto com a administração e download seguro de pedidos médicos e comprovantes.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-[12px] font-black uppercase text-red-600 tracking-widest mb-1">Funcionalidades</h3>
-                        <ul className="text-slate-900 text-[12px] font-medium space-y-1">
-                            <li><i className="fas fa-check text-red-600 mr-2"></i> Agenda Inteligente</li>
-                            <li><i className="fas fa-check text-red-600 mr-2"></i> Painel de Gestão</li>
-                            <li><i className="fas fa-check text-red-600 mr-2"></i> Telemedicina Integrada</li>
-                        </ul>
+
+                    <div className="p-3.5 bg-red-50 border border-red-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-sm">
+                        <div>
+                            <span className="text-[10px] font-black uppercase text-red-600 tracking-widest block">Investimento Simples e Transparente</span>
+                            <span className="text-base font-black text-slate-900 tracking-tight">Mensalidade única de <span className="text-red-600">R$ 30,00</span></span>
+                            <span className="text-[10px] text-slate-500 block font-bold">Sem taxa de adesão, sem multas e sem fidelidade.</span>
+                        </div>
+                        <button 
+                            onClick={() => window.location.hash = '#professional_signup'} 
+                            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm shrink-0 active-scale"
+                        >
+                            CADASTRAR AGORA
+                        </button>
                     </div>
                 </div>
             </div>
@@ -512,6 +695,12 @@
         const Home = ({ doctors, onSelectDoctor, selectedDoctorId }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const [locationTerm, setLocationTerm] = useState('');
+            const [currentPage, setCurrentPage] = useState(1);
+            const ITEMS_PER_PAGE = 30;
+
+            useEffect(() => {
+                setCurrentPage(1);
+            }, [searchTerm, locationTerm]);
 
             const normalizeStr = (str) => {
                 if (!str) return '';
@@ -602,6 +791,24 @@
                 });
             }, [doctors, searchTerm, locationTerm]);
 
+            const totalPages = Math.ceil(filteredDoctors.length / ITEMS_PER_PAGE) || 1;
+            const validPage = Math.min(Math.max(1, currentPage), totalPages);
+
+            const paginatedDoctors = useMemo(() => {
+                const startIndex = (validPage - 1) * ITEMS_PER_PAGE;
+                return filteredDoctors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+            }, [filteredDoctors, validPage]);
+
+            const handlePageChange = (newPage) => {
+                setCurrentPage(newPage);
+                const resultsSection = document.getElementById('search-results-section');
+                if (resultsSection) {
+                    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    window.scrollTo({ top: 100, behavior: 'smooth' });
+                }
+            };
+
             return (
                 <div className="animate-slide-up">
                     <section className="bg-white py-8 lg:py-6 border-b border-slate-200 relative">
@@ -620,12 +827,80 @@
                             </div>
                         </div>
                     </section>
-                    <section className="lg:max-w-none mx-auto px-4 lg:px-8 py-6 lg:py-4">
+                    <section id="search-results-section" className="lg:max-w-none mx-auto px-4 lg:px-8 py-6 lg:py-4">
                         {filteredDoctors.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-3">
-                                {filteredDoctors.map(doc => (
-                                    <DoctorCard key={doc.id} doctor={doc} isActive={selectedDoctorId === doc.id} onClick={() => onSelectDoctor(doc.id)} />
-                                ))}
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2 pb-1 text-xs font-black uppercase text-slate-700">
+                                    <span>
+                                        {filteredDoctors.length} {filteredDoctors.length === 1 ? 'ESPECIALISTA ENCONTRADO' : 'ESPECIALISTAS ENCONTRADOS'}
+                                    </span>
+                                    {totalPages > 1 && (
+                                        <span className="text-[11px] font-bold text-slate-500">
+                                            EXIBINDO {(validPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(validPage * ITEMS_PER_PAGE, filteredDoctors.length)} (PÁGINA {validPage} DE {totalPages})
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3">
+                                    {paginatedDoctors.map(doc => (
+                                        <DoctorCard key={doc.id} doctor={doc} isActive={selectedDoctorId === doc.id} onClick={() => onSelectDoctor(doc.id)} />
+                                    ))}
+                                </div>
+
+                                {totalPages > 1 && (
+                                    <div className="mt-6 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 border border-slate-200 shadow-sm rounded-sm">
+                                        <div className="text-xs font-black uppercase text-slate-700 tracking-wider text-center sm:text-left">
+                                            PÁGINA <span className="text-red-600 font-extrabold">{validPage}</span> DE <span className="text-slate-900 font-extrabold">{totalPages}</span>
+                                            <span className="text-slate-500 font-bold ml-2">({filteredDoctors.length} total)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {validPage > 1 && (
+                                                <button 
+                                                    onClick={() => handlePageChange(Math.max(1, validPage - 1))}
+                                                    className="px-3.5 py-2.5 bg-white border border-slate-300 text-slate-900 text-xs font-black uppercase tracking-wider hover:bg-slate-100 hover:border-slate-500 transition-all flex items-center gap-2 min-h-[40px] active-scale shadow-sm rounded-sm"
+                                                    title="Página Anterior"
+                                                >
+                                                    <i className="fas fa-arrow-left text-[11px]"></i>
+                                                    <span className="hidden sm:inline">ANTERIOR</span>
+                                                </button>
+                                            )}
+
+                                            <div className="flex items-center gap-1">
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - validPage) <= 1)
+                                                    .map((p, idx, arr) => {
+                                                        const prev = arr[idx - 1];
+                                                        return (
+                                                            <React.Fragment key={p}>
+                                                                {prev && p - prev > 1 && <span className="px-1 text-slate-400 font-black text-xs">...</span>}
+                                                                <button
+                                                                    onClick={() => handlePageChange(p)}
+                                                                    className={`w-9 h-9 text-xs font-black transition-all flex items-center justify-center border rounded-sm ${
+                                                                        validPage === p 
+                                                                            ? 'bg-red-600 text-white border-red-600 shadow-sm' 
+                                                                            : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-100'
+                                                                    }`}
+                                                                >
+                                                                    {p}
+                                                                </button>
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                            </div>
+
+                                            {validPage < totalPages && (
+                                                <button 
+                                                    onClick={() => handlePageChange(Math.min(totalPages, validPage + 1))}
+                                                    className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-md min-h-[40px] active-scale rounded-sm"
+                                                    title="Avançar para a próxima página"
+                                                >
+                                                    <span>PRÓXIMA</span>
+                                                    <i className="fas fa-arrow-right text-[12px]"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="bg-white p-8 text-center border border-slate-200 shadow-sm space-y-3">
@@ -641,14 +916,7 @@
                         )}
                     </section>
                     <section className="lg:max-w-none mx-auto px-4 lg:px-8 py-6 lg:py-6 border-t border-slate-100">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                            <div><PartnerSection /></div>
-                            <div className="space-y-4">
-                                <h2 className="text-3xl font-black uppercase tracking-tighter">JUNTE-SE À <br/><span className="text-red-600">MAIOR REDE</span></h2>
-                                <p className="text-slate-900 text-xs font-medium leading-relaxed">Nossa plataforma conecta milhares de pacientes a profissionais qualificados todos os dias. Tenha sua agenda organizada e sua visibilidade aumentada com o MedAgendar.</p>
-                                <button onClick={() => window.location.hash = '#professional_signup'} className="px-8 py-4 bg-red-600 text-white font-black uppercase text-[12px] tracking-widest hover:bg-red-700 transition-all shadow-lg active-scale">QUERO SER PARCEIRO</button>
-                            </div>
-                        </div>
+                        <PartnerSection />
                     </section>
                 </div>
             );
@@ -661,6 +929,8 @@
             const [selectedSlot, setSelectedSlot] = useState("");
             const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
             const [patientData, setPatientData] = useState({ name: '', phone: '', cpf: '' });
+            const [lastCreatedAppointment, setLastCreatedAppointment] = useState(null);
+            const [copiedMsg, setCopiedMsg] = useState(false);
 
             const selectedProfessional = useMemo(() => {
                 if (!doctor.isClinic || !selectedProfessionalId) return null;
@@ -754,7 +1024,7 @@
             }, [doctor, selectedDayDate, appointments, selectedProfessionalId, activeSchedule, activeWorkConfig, activeMaxSlots]);
 
             const finalize = () => {
-                onConfirm({ 
+                const newApp = { 
                     id: Math.random().toString(36).substr(2, 6).toUpperCase(), 
                     doctorId: doctor.id, 
                     doctorName: doctor.name, 
@@ -767,28 +1037,144 @@
                     patientCPF: patientData.cpf, 
                     status: 'confirmed', 
                     createdAt: new Date().toISOString() 
+                };
+
+                onConfirm(newApp);
+                setLastCreatedAppointment(newApp);
+
+                // Build and trigger official WhatsApp confirmation message
+                const msg = buildAppointmentCreatedMessage({
+                    patientName: patientData.name,
+                    doctorName: doctor.name,
+                    professionalName: selectedProfessional ? selectedProfessional.name : null,
+                    date: selectedDayDate,
+                    time: selectedSlot,
+                    address: doctor.address || doctor.clinicAddress,
+                    city: doctor.city,
+                    state: doctor.state
                 });
+
+                sendWhatsAppNotification(patientData.phone, msg, true);
                 setStep('success');
             };
 
-            if (step === 'success') return (
-                <div className="lg:max-w-none mx-auto py-12 lg:py-8 text-center border-4 border-slate-200 bg-white shadow-2xl mt-10 animate-slide-up">
-                    <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center text-3xl mx-auto mb-6 shadow-lg">
-                        <i className="fas fa-check"></i>
-                    </div>
-                    <h2 className="text-2xl lg:text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Agendamento Confirmado!</h2>
-                    <p className="text-[12px] font-bold text-slate-900 uppercase tracking-[0.2em] mb-8">Seu horário foi reservado com sucesso.</p>
-                    
-                    <div className="max-w-md mx-auto p-6 bg-slate-50 border-2 border-dashed border-slate-200 mb-8">
-                        <p className="text-[12px] font-black text-red-600 uppercase tracking-widest leading-relaxed">
-                            <i className="fas fa-exclamation-circle mr-2"></i>
-                            IMPORTANTE: Acesse a página "MEUS AGENDAMENTOS" para verificar o status da sua consulta e baixar documentos anexados pelo profissional.
-                        </p>
-                    </div>
+            if (step === 'success') {
+                const docLocationQuery = [doctor.address, doctor.city, doctor.state].filter(Boolean).join(', ') || doctor.clinicAddress || `${doctor.name}, ${doctor.city || ''}`;
+                const googleMapsDirectionsUrl = (doctor.mapUrl && String(doctor.mapUrl).trim().startsWith('http') && !doctor.mapUrl.includes('search/?api=1'))
+                    ? doctor.mapUrl.trim()
+                    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(docLocationQuery)}`;
 
-                    <button onClick={() => window.location.hash = '#home'} className="px-12 py-4 bg-red-600 text-white font-black uppercase text-[11px] tracking-widest hover:bg-red-700 transition-all active-scale shadow-xl">VOLTAR AO INÍCIO</button>
-                </div>
-            );
+                const confirmationMessage = buildAppointmentCreatedMessage({
+                    patientName: patientData.name,
+                    doctorName: doctor.name,
+                    professionalName: selectedProfessional ? selectedProfessional.name : null,
+                    date: selectedDayDate,
+                    time: selectedSlot,
+                    address: doctor.address || doctor.clinicAddress,
+                    city: doctor.city,
+                    state: doctor.state
+                });
+
+                const whatsappUrl = getWhatsAppSendUrl(patientData.phone, confirmationMessage);
+
+                return (
+                    <div className="lg:max-w-4xl mx-auto py-10 lg:py-8 text-center border-4 border-slate-200 bg-white shadow-2xl mt-6 px-4 sm:px-8 animate-slide-up rounded-sm">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center text-2xl sm:text-3xl mx-auto mb-4 shadow-lg">
+                            <i className="fas fa-check"></i>
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mb-1 uppercase tracking-tight">Agendamento Confirmado!</h2>
+                        <p className="text-xs sm:text-sm font-bold text-slate-600 uppercase tracking-widest mb-6">Seu horário foi reservado com sucesso no MedAgendar.</p>
+                        
+                        {/* WhatsApp Notification Card */}
+                        <div className="max-w-2xl mx-auto p-5 sm:p-6 bg-emerald-50/70 border-2 border-emerald-500 rounded-sm text-left mb-6 shadow-sm">
+                            <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-emerald-200">
+                                <div className="flex items-center gap-2">
+                                    <i className="fab fa-whatsapp text-emerald-600 text-xl"></i>
+                                    <span className="text-xs sm:text-sm font-black uppercase text-emerald-900 tracking-wide">
+                                        Notificação WhatsApp Enviada
+                                    </span>
+                                </div>
+                                <span className="px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded">
+                                    Central Oficial
+                                </span>
+                            </div>
+
+                            <div className="space-y-2 text-xs sm:text-sm text-slate-800">
+                                <p>
+                                    <strong className="text-slate-900 uppercase">Número Emissor:</strong> <span className="font-bold text-emerald-800">{OFFICIAL_WHATSAPP_NUMBER}</span>
+                                </p>
+                                <p>
+                                    <strong className="text-slate-900 uppercase">Destinatário:</strong> <span className="font-bold">{patientData.phone}</span> ({patientData.name})
+                                </p>
+                                <p>
+                                    <strong className="text-slate-900 uppercase">Profissional:</strong> {selectedProfessional ? `${selectedProfessional.name} (${doctor.name})` : doctor.name}
+                                </p>
+                                <p>
+                                    <strong className="text-slate-900 uppercase">Data e Horário:</strong> <span className="font-bold text-red-600">{formatFriendlyDate(selectedDayDate)} às {selectedSlot}</span>
+                                </p>
+                                <p>
+                                    <strong className="text-slate-900 uppercase">Local da Consulta:</strong> {docLocationQuery}
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-emerald-200 flex flex-col sm:flex-row gap-2">
+                                <a 
+                                    href={whatsappUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded transition-all shadow-sm active-scale"
+                                >
+                                    <i className="fab fa-whatsapp text-base"></i>
+                                    Abrir Confirmação no WhatsApp
+                                </a>
+                                <button 
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(confirmationMessage);
+                                        setCopiedMsg(true);
+                                        setTimeout(() => setCopiedMsg(false), 3000);
+                                    }}
+                                    className="py-3 px-4 bg-white border border-emerald-600 text-emerald-800 hover:bg-emerald-100 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded transition-all"
+                                >
+                                    <i className={`fas ${copiedMsg ? 'fa-check text-emerald-600' : 'fa-copy'}`}></i>
+                                    {copiedMsg ? 'Mensagem Copiada!' : 'Copiar Mensagem'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="max-w-2xl mx-auto p-4 bg-slate-50 border border-slate-200 mb-8 text-left text-xs font-bold text-slate-700">
+                            <p className="flex items-center gap-2 text-red-600 font-black uppercase text-[11px] mb-1">
+                                <i className="fas fa-info-circle"></i> Informação Importante
+                            </p>
+                            <p>
+                                Todas as atualizações, eventuais reagendamentos ou cancelamentos serão comunicados automaticamente para o seu WhatsApp cadastrado através do número oficial <strong>{OFFICIAL_WHATSAPP_NUMBER}</strong>.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
+                            <a 
+                                href={googleMapsDirectionsUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="w-full sm:w-auto px-8 py-3.5 bg-slate-900 text-white font-black uppercase text-xs tracking-wider hover:bg-red-600 transition-all flex items-center justify-center gap-2"
+                            >
+                                <i className="fas fa-location-arrow text-red-400"></i> Como Chegar (Google Maps)
+                            </a>
+                            <button 
+                                onClick={() => window.location.hash = '#consult_appointments'} 
+                                className="w-full sm:w-auto px-8 py-3.5 bg-red-600 text-white font-black uppercase text-xs tracking-wider hover:bg-red-700 transition-all active-scale shadow-lg"
+                            >
+                                Ver Meus Agendamentos
+                            </button>
+                            <button 
+                                onClick={() => window.location.hash = '#home'} 
+                                className="w-full sm:w-auto px-8 py-3.5 border border-slate-300 text-slate-800 font-black uppercase text-xs tracking-wider hover:bg-slate-100 transition-all"
+                            >
+                                Voltar ao Início
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
 
             const docLocationQuery = [doctor.address, doctor.city, doctor.state].filter(Boolean).join(', ') || doctor.clinicAddress || `${doctor.name}, ${doctor.city || ''}`;
             const googleMapsDirectionsUrl = (doctor.mapUrl && String(doctor.mapUrl).trim().startsWith('http') && !doctor.mapUrl.includes('search/?api=1'))
@@ -954,15 +1340,38 @@
             const handleCancelAppointment = (app) => {
                 const doCancel = async () => {
                     await onCancel(app.id);
-                    const msg = `Agendamento com ${app.doctorName} (${app.time}) foi cancelado com sucesso.`;
-                    setCancelledNotice(msg);
+                    const appDoctor = (doctors || []).find(d => d.id === app.doctorId);
+                    const profName = app.professionalName || (appDoctor?.professionals || []).find(p => p.id === app.professionalId)?.name;
+                    
+                    const cancelMsg = buildAppointmentCancelledMessage({
+                        patientName: app.patientName,
+                        doctorName: app.doctorName,
+                        professionalName: profName,
+                        date: app.date,
+                        time: app.time,
+                        address: appDoctor?.address || appDoctor?.clinicAddress,
+                        city: appDoctor?.city,
+                        state: appDoctor?.state
+                    });
+
+                    if (app.patientPhone) {
+                        sendWhatsAppNotification(app.patientPhone, cancelMsg, true);
+                    }
+
+                    const msg = `Agendamento com ${app.doctorName} (${app.time}) foi cancelado com sucesso. Notificação enviada para o seu WhatsApp via ${OFFICIAL_WHATSAPP_NUMBER}.`;
+                    setCancelledNotice({
+                        text: msg,
+                        phone: app.patientPhone,
+                        msgText: cancelMsg,
+                        url: getWhatsAppSendUrl(app.patientPhone, cancelMsg)
+                    });
                     if (showNotification) {
-                        showNotification('Agendamento cancelado com sucesso!', 'success');
+                        showNotification('Agendamento cancelado e notificação WhatsApp gerada!', 'success');
                     }
                 };
 
                 if (showConfirmation) {
-                    showConfirmation('Tem certeza que deseja cancelar esta consulta?', doCancel);
+                    showConfirmation(`Tem certeza que deseja cancelar esta consulta? Enviaremos uma notificação de cancelamento para o seu WhatsApp (${OFFICIAL_WHATSAPP_NUMBER}).`, doCancel);
                 } else if (window.confirm('Tem certeza que deseja cancelar esta consulta?')) {
                     doCancel();
                 }
@@ -983,19 +1392,34 @@
                     </div>
 
                     {cancelledNotice && (
-                        <div className="bg-emerald-50 border-2 border-emerald-600 p-4 mb-6 flex justify-between items-center animate-slide-up shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black shrink-0 text-sm">
+                        <div className="bg-emerald-50 border-2 border-emerald-600 p-4 sm:p-5 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 animate-slide-up shadow-sm">
+                            <div className="flex items-start sm:items-center gap-3 flex-1">
+                                <div className="w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-black shrink-0 text-sm mt-0.5 sm:mt-0">
                                     <i className="fas fa-check"></i>
                                 </div>
-                                <div>
-                                    <p className="text-xs font-black uppercase text-emerald-900">Cancelamento Confirmado</p>
-                                    <p className="text-[11px] font-bold uppercase text-emerald-800 mt-0.5">{cancelledNotice}</p>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-black uppercase text-emerald-900">Cancelamento Confirmado & Notificado</p>
+                                    <p className="text-[11px] font-bold uppercase text-emerald-800 leading-snug">{cancelledNotice.text}</p>
+                                    <p className="text-[10px] font-black text-emerald-900 uppercase">
+                                        <i className="fab fa-whatsapp text-emerald-600 mr-1"></i> Central MedAgendar: {OFFICIAL_WHATSAPP_NUMBER}
+                                    </p>
                                 </div>
                             </div>
-                            <button onClick={() => setCancelledNotice(null)} className="text-emerald-800 hover:text-emerald-900 font-black text-sm p-1">
-                                <i className="fas fa-times"></i>
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-200">
+                                {cancelledNotice.url && (
+                                    <a 
+                                        href={cancelledNotice.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-wider rounded flex items-center gap-1.5 transition-all shadow-sm flex-1 sm:flex-none justify-center"
+                                    >
+                                        <i className="fab fa-whatsapp"></i> Abrir no WhatsApp
+                                    </a>
+                                )}
+                                <button onClick={() => setCancelledNotice(null)} className="text-emerald-800 hover:text-emerald-900 font-black text-sm p-1.5 ml-auto">
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -1010,10 +1434,39 @@
                                         ? appDoctor.mapUrl.trim()
                                         : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(docLocationQuery)}`;
 
+                                    const appointmentMsg = app.status === 'cancelled' 
+                                        ? buildAppointmentCancelledMessage({
+                                            patientName: app.patientName,
+                                            doctorName: app.doctorName,
+                                            professionalName: profName,
+                                            date: app.date,
+                                            time: app.time,
+                                            address: appDoctor?.address || appDoctor?.clinicAddress,
+                                            city: appDoctor?.city,
+                                            state: appDoctor?.state
+                                        })
+                                        : buildAppointmentCreatedMessage({
+                                            patientName: app.patientName,
+                                            doctorName: app.doctorName,
+                                            professionalName: profName,
+                                            date: app.date,
+                                            time: app.time,
+                                            address: appDoctor?.address || appDoctor?.clinicAddress,
+                                            city: appDoctor?.city,
+                                            state: appDoctor?.state
+                                        });
+
+                                    const whatsappMsgUrl = getWhatsAppSendUrl(app.patientPhone, appointmentMsg);
+
                                     return (
                                         <div key={app.id} className="bg-white border border-slate-200 p-4 lg:p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                             <div className="space-y-1.5 flex-1">
-                                                <h3 className="font-black uppercase text-sm lg:text-xs text-slate-900">{app.doctorName}</h3>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="font-black uppercase text-sm lg:text-xs text-slate-900">{app.doctorName}</h3>
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${app.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                                        {app.status === 'cancelled' ? 'CANCELADO' : 'CONFIRMADO'}
+                                                    </span>
+                                                </div>
                                                 {profName && (
                                                     <p className="text-[11px] font-black uppercase text-slate-700 flex items-center gap-1.5">
                                                         <i className="fas fa-user-md text-red-600"></i> Profissional: <span className="text-slate-900">{profName}</span>
@@ -1028,10 +1481,21 @@
                                                             .replace('-FEIRA', '')
                                                     ) : app.date} às {app.time}
                                                 </p>
+                                                <p className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1">
+                                                    <i className="fas fa-map-marker-alt text-red-600"></i> {docLocationQuery}
+                                                </p>
                                                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                                                    <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded ${app.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                        {app.status === 'cancelled' ? 'CANCELADO' : 'CONFIRMADO'}
-                                                    </span>
+                                                    {whatsappMsgUrl && (
+                                                        <a 
+                                                            href={whatsappMsgUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="px-3 py-1.5 bg-emerald-50 border border-emerald-500 text-emerald-800 hover:bg-emerald-600 hover:text-white text-xs sm:text-[10px] font-black uppercase rounded flex items-center gap-1.5 transition-all min-h-[38px] sm:min-h-[28px]"
+                                                            title={`Notificação via WhatsApp oficial: ${OFFICIAL_WHATSAPP_NUMBER}`}
+                                                        >
+                                                            <i className="fab fa-whatsapp text-emerald-600"></i> {app.status === 'cancelled' ? 'WHATSAPP CANCELAMENTO' : 'WHATSAPP CONFIRMAÇÃO'}
+                                                        </a>
+                                                    )}
                                                     {app.document && (
                                                         <a 
                                                             href={app.document.data} 
@@ -2902,7 +3366,7 @@
                                                     time: newRescheduleTime,
                                                     status: 'confirmed'
                                                 });
-                                                showNotification(`Agendamento reagendado com sucesso para ${newRescheduleDate} às ${newRescheduleTime}!`);
+                                                showNotification(`Consulta reagendada para ${formatFriendlyDate(newRescheduleDate)} às ${newRescheduleTime}! Notificação enviada via WhatsApp (${OFFICIAL_WHATSAPP_NUMBER}).`);
                                                 setReschedulingApp(null);
                                             } catch (err) {
                                                 showNotification("Erro ao reagendar consulta.", "error");
@@ -3640,8 +4104,25 @@
 
             const handleCancel = async (id) => {
                 try {
+                    const targetApp = appointments.find(a => a.id === id);
                     const appRef = doc(db, 'appointments', id);
                     await updateDoc(appRef, { status: 'cancelled' });
+
+                    if (targetApp && targetApp.patientPhone) {
+                        const targetDoctor = doctors.find(d => d.id === targetApp.doctorId);
+                        const profName = targetApp.professionalName || (targetDoctor?.professionals || []).find(p => p.id === targetApp.professionalId)?.name;
+                        const cancelMsg = buildAppointmentCancelledMessage({
+                            patientName: targetApp.patientName,
+                            doctorName: targetApp.doctorName,
+                            professionalName: profName,
+                            date: targetApp.date,
+                            time: targetApp.time,
+                            address: targetDoctor?.address || targetDoctor?.clinicAddress,
+                            city: targetDoctor?.city,
+                            state: targetDoctor?.state
+                        });
+                        sendWhatsAppNotification(targetApp.patientPhone, cancelMsg, true);
+                    }
                 } catch (e) {
                     handleFirestoreError(e, OperationType.UPDATE, 'appointments');
                 }
@@ -3649,8 +4130,30 @@
 
             const handleUpdateAppointment = async (id, updates) => {
                 try {
+                    const targetApp = appointments.find(a => a.id === id);
                     const appRef = doc(db, 'appointments', id);
                     await updateDoc(appRef, updates);
+
+                    // Check if it's a rescheduling event
+                    if (targetApp && (updates.date || updates.time || (targetApp.status === 'cancelled' && updates.status === 'confirmed'))) {
+                        const targetDoctor = doctors.find(d => d.id === targetApp.doctorId);
+                        const profName = targetApp.professionalName || (targetDoctor?.professionals || []).find(p => p.id === targetApp.professionalId)?.name;
+                        const rescheduleMsg = buildAppointmentRescheduledMessage({
+                            patientName: targetApp.patientName,
+                            doctorName: targetApp.doctorName,
+                            professionalName: profName,
+                            oldDate: targetApp.date,
+                            oldTime: targetApp.time,
+                            newDate: updates.date || targetApp.date,
+                            newTime: updates.time || targetApp.time,
+                            address: targetDoctor?.address || targetDoctor?.clinicAddress,
+                            city: targetDoctor?.city,
+                            state: targetDoctor?.state
+                        });
+                        if (targetApp.patientPhone) {
+                            sendWhatsAppNotification(targetApp.patientPhone, rescheduleMsg, true);
+                        }
+                    }
                 } catch (e) {
                     handleFirestoreError(e, OperationType.UPDATE, 'appointments');
                 }
