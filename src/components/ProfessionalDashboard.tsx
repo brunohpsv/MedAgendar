@@ -38,7 +38,7 @@ export const ProfessionalDashboard = ({ doctors, appointments, setDoctors, logge
     </div>
   );
 
-  const doctorAppointments = appointments.filter(a => a.doctorId === loggedInId);
+  const doctorAppointments = appointments.filter(a => a.doctorId === loggedInId && !a.rescheduledToId && a.status !== 'rescheduled');
 
   return (
     <div className="lg:max-w-none mx-auto animate-slide-up">
@@ -100,7 +100,12 @@ export const ProfessionalDashboard = ({ doctors, appointments, setDoctors, logge
                         <span className="text-lg">{app.time}</span>
                       </div>
                       <div>
-                        <p className="font-black uppercase text-slate-900">{app.patientName}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-black uppercase text-slate-900">{app.patientName}</p>
+                          {(app.isRescheduled || app.rescheduledFromId || (app as any).rescheduled) && (
+                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black uppercase rounded border border-amber-600">Reagendamento</span>
+                          )}
+                        </div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{app.date}</p>
                         <div className="flex gap-4">
                           <a href={`tel:${app.patientPhone}`} className="text-[9px] font-black text-red-600 uppercase hover:underline"><i className="fas fa-phone mr-1"></i> {app.patientPhone}</a>

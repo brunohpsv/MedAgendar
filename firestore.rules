@@ -73,7 +73,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'doctorId', 'patientCPF', 'status']) &&
              data.doctorId is string &&
              data.patientCPF is string &&
-             data.status in ['confirmed', 'cancelled'];
+             data.status in ['confirmed', 'cancelled', 'completed', 'rescheduled'];
     }
 
     // ===============================================================

@@ -13,7 +13,7 @@
 
     <!-- Versioning / Cache Busting -->
     <script>
-        const APP_VERSION = '1.0.8';
+        const APP_VERSION = '1.1.1';
         
         // Automatic Cache Busting: Force reload if version changes
         (function() {
@@ -872,18 +872,26 @@
                 const rules = activeWorkConfig.groupingRules || [];
                 const capacities = activeWorkConfig.slotCapacities || {};
                 const globalMax = activeMaxSlots || 1;
+                const standardDur = Number(activeWorkConfig.slotDuration) || 30;
                 
                 // Get day of week (0-6)
                 const dateObj = new Date(selectedDayDate + 'T12:00:00');
                 const dayOfWeek = dateObj.getDay();
 
+                // Confirmed appointments on this date for this doctor/professional
+                const dayConfirmedApps = (appointments || []).filter(app => 
+                    app.doctorId === doctor.id && 
+                    (!doctor.isClinic || !selectedProfessionalId || app.professionalId === selectedProfessionalId) &&
+                    app.date === day.date && 
+                    app.status === 'confirmed'
+                );
+
                 return day.slots.map(slot => {
                     // Find applicable rule
                     // Priority: Specific Date > Days of Week > Specific Time Capacity > Global Max
-                    // We search rules in reverse order (newest first)
                     let maxSlots = globalMax;
                     
-                    // 1. Check specific time capacity (legacy/simple override)
+                    // 1. Check specific time capacity
                     if (capacities[slot] !== undefined) {
                         maxSlots = capacities[slot];
                     }
@@ -902,7 +910,7 @@
                         if (daysRule) {
                             maxSlots = daysRule.capacity;
                         } else {
-                            // All dates rule (if exists for this time)
+                            // All dates rule
                             const allDatesRule = applicableRules.find(r => r.type === 'all');
                             if (allDatesRule) {
                                 maxSlots = allDatesRule.capacity;
@@ -910,22 +918,45 @@
                         }
                     }
 
-                    const count = appointments.filter(app => 
-                        app.doctorId === doctor.id && 
-                        (!doctor.isClinic || app.professionalId === selectedProfessionalId) &&
-                        app.date === day.date && 
-                        app.time === slot && 
-                        app.status === 'confirmed'
-                    ).length;
+                    const slotStartMin = timeToMin(slot);
+                    const slotEndMin = slotStartMin + standardDur;
+
+                    // Overlap detection: accurately checks standard, rescheduled, and extended appointments
+                    let overlappingCount = 0;
+                    let hasBlockingOverlap = false;
+
+                    for (const app of dayConfirmedApps) {
+                        const appStartMin = timeToMin(app.time);
+                        const appDuration = (Number(app.duration) || standardDur) + (Number(app.tolerance) || 0);
+                        const appEndMin = appStartMin + appDuration;
+
+                        // Check if time windows intersect
+                        if (slotStartMin < appEndMin && slotEndMin > appStartMin) {
+                            overlappingCount++;
+                            // If appointment is extended or covers more than one standard slot, it blocks the slot entirely
+                            if (app.isExtendedTime || appDuration > standardDur) {
+                                hasBlockingOverlap = true;
+                            }
+                        }
+                    }
+
+                    const isAvailable = (overlappingCount < maxSlots) && !hasBlockingOverlap;
 
                     return {
                         time: slot,
-                        count,
+                        count: overlappingCount,
                         max: maxSlots,
-                        available: count < maxSlots
+                        available: isAvailable
                     };
                 });
             }, [doctor, selectedDayDate, appointments, selectedProfessionalId, activeSchedule, activeWorkConfig, activeMaxSlots]);
+
+            // Clear selected slot if it becomes unavailable
+            useEffect(() => {
+                if (selectedSlot && !availableSlots.some(s => s.time === selectedSlot && s.available)) {
+                    setSelectedSlot("");
+                }
+            }, [availableSlots, selectedSlot]);
 
             const finalize = () => {
                 onConfirm({ 
@@ -1080,22 +1111,32 @@
                                     <select value={selectedDayDate} onChange={(e) => setSelectedDayDate(e.target.value)} className="w-full p-4 lg:p-3 border border-slate-200 font-black uppercase text-xs min-h-[48px]">
                                         {activeSchedule.map(day => <option key={day.date} value={day.date}>{day.label}</option>)}
                                     </select>
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5 lg:gap-1">
-                                        {availableSlots.filter(s => s.available).map(slot => (
-                                            <button 
-                                                key={slot.time} 
-                                                onClick={() => setSelectedSlot(slot.time)} 
-                                                className={`py-3 px-2 lg:p-1.5 text-xs lg:text-[11px] font-black border flex flex-col items-center justify-center transition-all min-h-[44px] ${selectedSlot === slot.time ? 'bg-red-600 text-white border-red-600 shadow-lg' : 'bg-slate-50 hover:border-red-600 text-slate-900'}`}
-                                            >
-                                                <span>{slot.time}</span>
-                                                {slot.max > 1 && (
-                                                    <span className={`text-[10px] mt-0.5 font-bold ${selectedSlot === slot.time ? 'text-white/80' : 'text-slate-900'}`}>
-                                                        {slot.count}/{slot.max}
-                                                    </span>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    {availableSlots.filter(s => s.available).length === 0 ? (
+                                        <div className="p-6 bg-red-50 border-2 border-dashed border-red-200 text-center">
+                                            <p className="text-xs font-black text-red-600 uppercase tracking-wider">
+                                                <i className="fas fa-calendar-times mr-2 text-sm"></i>
+                                                Todos os horários desta data estão indisponíveis ou ocupados por atendimentos/reagendamentos.
+                                            </p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Por favor, selecione outra data acima.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5 lg:gap-1">
+                                            {availableSlots.filter(s => s.available).map(slot => (
+                                                <button 
+                                                    key={slot.time} 
+                                                    onClick={() => setSelectedSlot(slot.time)} 
+                                                    className={`py-3 px-2 lg:p-1.5 text-xs lg:text-[11px] font-black border flex flex-col items-center justify-center transition-all min-h-[44px] ${selectedSlot === slot.time ? 'bg-red-600 text-white border-red-600 shadow-lg' : 'bg-slate-50 hover:border-red-600 text-slate-900'}`}
+                                                >
+                                                    <span>{slot.time}</span>
+                                                    {slot.max > 1 && (
+                                                        <span className={`text-[10px] mt-0.5 font-bold ${selectedSlot === slot.time ? 'text-white/80' : 'text-slate-900'}`}>
+                                                            {slot.count}/{slot.max}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <button disabled={!selectedSlot} onClick={() => setStep('form')} className="w-full py-4 lg:py-3 bg-red-600 text-white font-black uppercase text-xs tracking-widest disabled:opacity-50 min-h-[48px] shadow-md">CONTINUAR</button>
                                 </div>
                             ) : (
@@ -1123,7 +1164,7 @@
                 setSearchedCpf(cpf.trim());
             };
 
-            const searchResult = searchedCpf ? appointments.filter(app => app.patientCPF === searchedCpf) : null;
+            const searchResult = searchedCpf ? appointments.filter(app => app.patientCPF === searchedCpf && !app.rescheduledToId && app.status !== 'rescheduled') : null;
 
             const handleCancelAppointment = (app) => {
                 const doCancel = async () => {
@@ -1187,7 +1228,14 @@
                                     return (
                                         <div key={app.id} className="bg-white border border-slate-200 p-4 lg:p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                             <div className="space-y-1.5 flex-1">
-                                                <h3 className="font-black uppercase text-sm lg:text-xs text-slate-900">{app.doctorName}</h3>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-black uppercase text-sm lg:text-xs text-slate-900">{app.doctorName}</h3>
+                                                    {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
+                                                        <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
+                                                            <i className="fas fa-history"></i> Reagendamento
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {profName && (
                                                     <p className="text-[11px] font-black uppercase text-slate-700 flex items-center gap-1.5">
                                                         <i className="fas fa-user-md text-red-600"></i> Profissional: <span className="text-slate-900">{profName}</span>
@@ -1203,8 +1251,13 @@
                                                     ) : app.date} às {app.time}
                                                 </p>
                                                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                                                    <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded ${app.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                        {app.status === 'cancelled' ? 'CANCELADO' : 'CONFIRMADO'}
+                                                    {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
+                                                        <span className="px-2.5 py-1 text-[10px] font-black uppercase rounded bg-amber-500 text-white flex items-center gap-1">
+                                                            <i className="fas fa-history"></i> REAGENDAMENTO
+                                                        </span>
+                                                    )}
+                                                    <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded ${app.status === 'cancelled' ? 'bg-red-100 text-red-600' : (app.status === 'completed' ? 'bg-slate-900 text-white' : 'bg-emerald-100 text-emerald-600')}`}>
+                                                        {app.status === 'cancelled' ? 'CANCELADO' : (app.status === 'completed' ? 'CONCLUÍDO' : 'CONFIRMADO')}
                                                     </span>
                                                     {app.document && (
                                                         <a 
@@ -1226,7 +1279,7 @@
                                                     </a>
                                                 </div>
                                             </div>
-                                            {app.status !== 'cancelled' && (
+                                            {app.status !== 'cancelled' && app.status !== 'completed' && (
                                                 <button onClick={() => handleCancelAppointment(app)} className="px-4 py-2.5 bg-red-50 text-red-600 border border-red-200 font-black uppercase text-xs sm:text-[10px] tracking-wider hover:bg-red-600 hover:text-white transition-all shrink-0 min-h-[38px] sm:min-h-[28px] w-full sm:w-auto text-center">
                                                     CANCELAR
                                                 </button>
@@ -1468,7 +1521,7 @@
             );
         };
 
-        const ProfessionalDashboard = ({ doctors, appointments, setDoctors, loggedInId, loggedInProfessionalId, onLogin, onLogout, onCancelAppointment, onUpdateAppointment, supportMessages = [], onSendSupportMessage, showNotification, showConfirmation }) => {
+        const ProfessionalDashboard = ({ doctors, appointments, setDoctors, loggedInId, loggedInProfessionalId, onLogin, onLogout, onCancelAppointment, onUpdateAppointment, onConfirmAppointment, supportMessages = [], onSendSupportMessage, showNotification, showConfirmation }) => {
             const formatDateLong = (dateStr) => {
                 if (!dateStr) return 'DATA INVÁLIDA';
                 if (!dateStr.includes('-')) {
@@ -1505,18 +1558,316 @@
             const [groupingRuleDate, setGroupingRuleDate] = useState('');
             const [groupingRuleDays, setGroupingRuleDays] = useState([]);
             const [newProf, setNewProf] = useState({ name: '', specialties: '', image: '' });
-            const [notificationsViewed, setNotificationsViewed] = useState(false);
+            const notifStorageKey = 'medagendar_viewed_cancelled_apps_' + (loggedInProfessionalId ? `${loggedInId}_${loggedInProfessionalId}` : (loggedInId || 'default'));
+            const [viewedNotifIds, setViewedNotifIds] = useState(() => {
+                try {
+                    const saved = localStorage.getItem(notifStorageKey);
+                    return saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+
+            // Rescheduling Flow State
             const [reschedulingApp, setReschedulingApp] = useState(null);
-            const [newRescheduleDate, setNewRescheduleDate] = useState('');
-            const [newRescheduleTime, setNewRescheduleTime] = useState('');
-            
+            const [rescheduleType, setRescheduleType] = useState(null); // null (question), 'standard', 'extended'
+            const [rescheduleDuration, setRescheduleDuration] = useState(60); // minutes
+            const [rescheduleTolerance, setRescheduleTolerance] = useState(15); // minutes
+            const [rescheduleSelectedDate, setRescheduleSelectedDate] = useState('');
+            const [rescheduleSelectedTime, setRescheduleSelectedTime] = useState('');
+            const [rescheduleNotes, setRescheduleNotes] = useState('');
+            const [rescheduleAttachments, setRescheduleAttachments] = useState([]);
+
             const loggedInDoctor = doctors.find(d => d.id === loggedInId);
 
-            useEffect(() => {
-                if (activeTab === 'notifications') {
-                    setNotificationsViewed(true);
+            // Calculate Available Schedule for Rescheduling (Supports Standard & Extended Duration with Tolerance)
+            const calculatedRescheduleSchedule = useMemo(() => {
+                if (!reschedulingApp || !rescheduleType) return [];
+
+                const docObj = localDoctor || loggedInDoctor;
+                if (!docObj) return [];
+
+                const targetProf = (reschedulingApp.professionalId || loggedInProfessionalId)
+                    ? (docObj.professionals || []).find(p => p.id === (reschedulingApp.professionalId || loggedInProfessionalId))
+                    : null;
+
+                const activeWorkConfig = (targetProf ? targetProf.workConfig : docObj.workConfig) || DEFAULT_WORK_CONFIG;
+                const globalMax = (targetProf ? targetProf.maxSlotsPerTime : docObj.maxSlotsPerTime) || 1;
+                const rules = activeWorkConfig.groupingRules || [];
+                const capacities = activeWorkConfig.slotCapacities || {};
+
+                const isExtended = rescheduleType === 'extended';
+                const duration = isExtended ? (Number(rescheduleDuration) || 60) : (Number(activeWorkConfig.slotDuration) || 30);
+                const tolerance = isExtended ? (Number(rescheduleTolerance) || 0) : 0;
+                const totalSlotBlock = duration + tolerance;
+
+                if (!activeWorkConfig.daysOfWeek || activeWorkConfig.daysOfWeek.length === 0) return [];
+
+                const scheduleList = [];
+                const today = new Date();
+
+                for (let i = 0; i < 30; i++) {
+                    const currentDate = new Date(today);
+                    currentDate.setDate(today.getDate() + i);
+                    const dayOfWeek = currentDate.getDay();
+
+                    if (activeWorkConfig.daysOfWeek.includes(dayOfWeek)) {
+                        const year = currentDate.getFullYear();
+                        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+                        const dayNum = String(currentDate.getDate()).padStart(2, '0');
+                        const dateStr = `${year}-${month}-${dayNum}`;
+
+                        let startT = activeWorkConfig.startTime || "08:00";
+                        let endT = activeWorkConfig.endTime || "18:00";
+                        if (dayOfWeek === 6 && activeWorkConfig.saturdayStartTime && activeWorkConfig.saturdayEndTime) {
+                            startT = activeWorkConfig.saturdayStartTime;
+                            endT = activeWorkConfig.saturdayEndTime;
+                        } else if (dayOfWeek === 0 && activeWorkConfig.sundayStartTime && activeWorkConfig.sundayEndTime) {
+                            startT = activeWorkConfig.sundayStartTime;
+                            endT = activeWorkConfig.sundayEndTime;
+                        }
+
+                        const startMin = timeToMin(startT);
+                        const endMin = timeToMin(endT);
+
+                        // Confirmed appointments on this date
+                        const dayApps = (appointments || []).filter(a => 
+                            a.doctorId === (reschedulingApp.doctorId || loggedInId) &&
+                            (!reschedulingApp.professionalId || a.professionalId === reschedulingApp.professionalId) &&
+                            a.date === dateStr &&
+                            a.status === 'confirmed' &&
+                            a.id !== reschedulingApp.id
+                        );
+
+                        const availableSlots = [];
+
+                        if (isExtended) {
+                            const step = 15;
+                            for (let t = startMin; t + totalSlotBlock <= endMin; t += step) {
+                                const slotStart = t;
+                                const slotEnd = t + totalSlotBlock;
+
+                                let inBreak = false;
+                                if (activeWorkConfig.breaks?.lunch?.active) {
+                                    const lStart = timeToMin(activeWorkConfig.breaks.lunch.start || "12:00");
+                                    const lEnd = timeToMin(activeWorkConfig.breaks.lunch.end || "13:30");
+                                    if (!(slotEnd <= lStart || slotStart >= lEnd)) inBreak = true;
+                                }
+                                if (activeWorkConfig.breaks?.snack?.active) {
+                                    const sStart = timeToMin(activeWorkConfig.breaks.snack.start || "16:00");
+                                    const sEnd = timeToMin(activeWorkConfig.breaks.snack.end || "16:30");
+                                    if (!(slotEnd <= sStart || slotStart >= sEnd)) inBreak = true;
+                                }
+                                if (inBreak) continue;
+
+                                let hasOverlap = false;
+                                for (const app of dayApps) {
+                                    const aStart = timeToMin(app.time);
+                                    const aDur = (Number(app.duration) || Number(activeWorkConfig.slotDuration) || 30) + (Number(app.tolerance) || 0);
+                                    const aEnd = aStart + aDur;
+                                    if (slotStart < aEnd && slotEnd > aStart) {
+                                        hasOverlap = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!hasOverlap) {
+                                    availableSlots.push(minToTime(slotStart));
+                                }
+                            }
+                        } else {
+                            let currentMin = startMin;
+                            const standardDur = Number(activeWorkConfig.slotDuration) || 30;
+                            const standardInterval = Number(activeWorkConfig.minInterval) || 0;
+
+                            while (currentMin + standardDur <= endMin) {
+                                const slotStart = currentMin;
+                                const slotEnd = currentMin + standardDur;
+                                let inBreak = false;
+                                if (activeWorkConfig.breaks?.lunch?.active) {
+                                    const lStart = timeToMin(activeWorkConfig.breaks.lunch.start || "12:00");
+                                    const lEnd = timeToMin(activeWorkConfig.breaks.lunch.end || "13:30");
+                                    if (!(slotEnd <= lStart || slotStart >= lEnd)) inBreak = true;
+                                }
+                                if (activeWorkConfig.breaks?.snack?.active) {
+                                    const sStart = timeToMin(activeWorkConfig.breaks.snack.start || "16:00");
+                                    const sEnd = timeToMin(activeWorkConfig.breaks.snack.end || "16:30");
+                                    if (!(slotEnd <= sStart || slotStart >= sEnd)) inBreak = true;
+                                }
+
+                                if (!inBreak) {
+                                    const timeStr = minToTime(slotStart);
+                                    let maxSlots = globalMax;
+                                    if (capacities[timeStr] !== undefined) maxSlots = capacities[timeStr];
+                                    const reversedRules = [...rules].reverse();
+                                    const applicableRules = reversedRules.filter(r => r.times.includes(timeStr) || r.times.includes('all'));
+                                    const dateRule = applicableRules.find(r => r.type === 'date' && r.date === dateStr);
+                                    if (dateRule) maxSlots = dateRule.capacity;
+                                    else {
+                                        const daysRule = applicableRules.find(r => r.type === 'days' && r.days.includes(dayOfWeek));
+                                        if (daysRule) maxSlots = daysRule.capacity;
+                                        else {
+                                            const allRule = applicableRules.find(r => r.type === 'all');
+                                            if (allRule) maxSlots = allRule.capacity;
+                                        }
+                                    }
+
+                                    const bookedCount = dayApps.filter(a => a.time === timeStr).length;
+                                    if (bookedCount < maxSlots) {
+                                        availableSlots.push(timeStr);
+                                    }
+                                }
+                                currentMin += standardDur + standardInterval;
+                            }
+                        }
+
+                        if (availableSlots.length > 0) {
+                            const labels = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+                            const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+                            const label = `${labels[dayOfWeek]}, ${dayNum} ${months[currentDate.getMonth()]}`;
+                            scheduleList.push({ date: dateStr, label, slots: availableSlots });
+                        }
+                    }
                 }
-            }, [activeTab]);
+                return scheduleList;
+            }, [reschedulingApp, rescheduleType, rescheduleDuration, rescheduleTolerance, localDoctor, loggedInDoctor, loggedInProfessionalId, appointments, loggedInId]);
+
+            // Auto-select first available date when schedule updates
+            useEffect(() => {
+                if (calculatedRescheduleSchedule && calculatedRescheduleSchedule.length > 0) {
+                    if (!calculatedRescheduleSchedule.some(d => d.date === rescheduleSelectedDate)) {
+                        const firstDay = calculatedRescheduleSchedule[0];
+                        setRescheduleSelectedDate(firstDay.date);
+                        setRescheduleSelectedTime(firstDay.slots[0] || '');
+                    }
+                } else {
+                    setRescheduleSelectedDate('');
+                    setRescheduleSelectedTime('');
+                }
+            }, [calculatedRescheduleSchedule, rescheduleSelectedDate]);
+
+            // Auto-select valid time when selected date changes
+            useEffect(() => {
+                if (rescheduleSelectedDate && calculatedRescheduleSchedule && calculatedRescheduleSchedule.length > 0) {
+                    const day = calculatedRescheduleSchedule.find(d => d.date === rescheduleSelectedDate);
+                    if (day && day.slots.length > 0) {
+                        if (!day.slots.includes(rescheduleSelectedTime)) {
+                            setRescheduleSelectedTime(day.slots[0]);
+                        }
+                    } else {
+                        setRescheduleSelectedTime('');
+                    }
+                }
+            }, [rescheduleSelectedDate, calculatedRescheduleSchedule, rescheduleSelectedTime]);
+
+            const handleStartReschedule = (app) => {
+                setReschedulingApp(app);
+                setRescheduleType(null); // prompt asking question first
+                setRescheduleDuration(Number(app.duration) || 60);
+                setRescheduleTolerance(Number(app.tolerance) || 15);
+                setRescheduleSelectedDate('');
+                setRescheduleSelectedTime('');
+                setRescheduleNotes(app.notes || '');
+                const initialAtts = app.attachments || (app.document ? [app.document] : []);
+                setRescheduleAttachments([...initialAtts]);
+            };
+
+            const handleRescheduleFileUpload = (e) => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        setRescheduleAttachments(prev => [
+                            ...prev,
+                            {
+                                name: file.name,
+                                data: event.target.result,
+                                size: file.size,
+                                type: file.type || 'document'
+                            }
+                        ]);
+                    };
+                    reader.readAsDataURL(file);
+                });
+                e.target.value = '';
+            };
+
+            const handleConfirmReschedule = async () => {
+                if (!reschedulingApp || !rescheduleSelectedDate || !rescheduleSelectedTime) {
+                    showNotification("Selecione uma data e horário disponíveis para o reagendamento.", "error");
+                    return;
+                }
+
+                try {
+                    const isExtended = rescheduleType === 'extended';
+                    const targetProf = (reschedulingApp.professionalId || loggedInProfessionalId)
+                        ? (localDoctor?.professionals || []).find(p => p.id === (reschedulingApp.professionalId || loggedInProfessionalId))
+                        : null;
+                    const activeWorkConfig = (targetProf ? targetProf.workConfig : localDoctor?.workConfig) || DEFAULT_WORK_CONFIG;
+
+                    const duration = isExtended ? Number(rescheduleDuration) : (Number(activeWorkConfig.slotDuration) || 30);
+                    const tolerance = isExtended ? Number(rescheduleTolerance) : 0;
+
+                    const newAppId = 'app_' + Date.now();
+                    const newAppData = {
+                        id: newAppId,
+                        doctorId: reschedulingApp.doctorId || loggedInId,
+                        professionalId: reschedulingApp.professionalId || loggedInProfessionalId || null,
+                        doctorName: reschedulingApp.doctorName || displayDoctor?.name || 'Profissional',
+                        patientName: reschedulingApp.patientName,
+                        patientCPF: reschedulingApp.patientCPF || '',
+                        patientPhone: reschedulingApp.patientPhone || '',
+                        patientEmail: reschedulingApp.patientEmail || '',
+                        date: rescheduleSelectedDate,
+                        time: rescheduleSelectedTime,
+                        duration: duration,
+                        tolerance: tolerance,
+                        isExtendedTime: isExtended,
+                        isRescheduled: true,
+                        rescheduled: true,
+                        notes: rescheduleNotes.trim(),
+                        attachments: rescheduleAttachments,
+                        document: rescheduleAttachments.length > 0 ? rescheduleAttachments[0] : (reschedulingApp.document || null),
+                        status: 'confirmed',
+                        price: reschedulingApp.price || displayDoctor?.price || 0,
+                        createdAt: new Date().toISOString(),
+                        rescheduledFromId: reschedulingApp.id,
+                        rescheduledFromDate: reschedulingApp.date,
+                        rescheduledFromTime: reschedulingApp.time
+                    };
+
+                    if (onConfirmAppointment) {
+                        await onConfirmAppointment(newAppData);
+                    } else {
+                        await onUpdateAppointment(newAppId, newAppData);
+                    }
+
+                    // Update original appointment as rescheduled and record new appointment reference so it no longer appears
+                    await onUpdateAppointment(reschedulingApp.id, {
+                        status: 'rescheduled',
+                        rescheduledToId: newAppId,
+                        rescheduledToDate: rescheduleSelectedDate,
+                        rescheduledToTime: rescheduleSelectedTime
+                    });
+
+                    showNotification(`Consulta reagendada com sucesso para ${formatDateLong(rescheduleSelectedDate)} às ${rescheduleSelectedTime}!`);
+                    setReschedulingApp(null);
+                } catch (err) {
+                    console.error("Erro ao reagendar consulta:", err);
+                    showNotification("Erro ao reagendar consulta. Verifique sua conexão.", "error");
+                }
+            };
+
+            useEffect(() => {
+                try {
+                    const saved = localStorage.getItem(notifStorageKey);
+                    setViewedNotifIds(saved ? JSON.parse(saved) : []);
+                } catch (e) {
+                    setViewedNotifIds([]);
+                }
+            }, [notifStorageKey]);
 
             useEffect(() => {
                 if (loggedInDoctor) {
@@ -1529,6 +1880,37 @@
                     setActiveTab('professionals');
                 }
             }, [loggedInDoctor, loggedInProfessionalId]);
+
+            const doctorAppointments = appointments.filter(a => 
+                a.doctorId === loggedInId && 
+                (!loggedInProfessionalId || a.professionalId === loggedInProfessionalId) &&
+                !a.rescheduledToId && a.status !== 'rescheduled'
+            );
+
+            const cancelledApps = (doctorAppointments || []).filter(app => app && app.status === 'cancelled' && !app.rescheduledToId && app.status !== 'rescheduled');
+            const unreadCancelledApps = (cancelledApps || []).filter(app => !viewedNotifIds.includes(String(app.id)));
+
+            const markNotificationsAsViewed = () => {
+                if (cancelledApps.length > 0) {
+                    const allCancelledIds = cancelledApps.map(a => String(a.id));
+                    const hasUnviewed = allCancelledIds.some(id => !viewedNotifIds.includes(id));
+                    if (hasUnviewed) {
+                        const updated = Array.from(new Set([...viewedNotifIds, ...allCancelledIds]));
+                        setViewedNotifIds(updated);
+                        try {
+                            localStorage.setItem(notifStorageKey, JSON.stringify(updated));
+                        } catch (e) {
+                            console.error("Erro ao salvar notificações visualizadas:", e);
+                        }
+                    }
+                }
+            };
+
+            useEffect(() => {
+                if (activeTab === 'notifications') {
+                    markNotificationsAsViewed();
+                }
+            }, [activeTab, cancelledApps, viewedNotifIds, notifStorageKey]);
 
             const handleLogin = () => { 
                 const cleanCode = accessCode.trim().toUpperCase();
@@ -1854,11 +2236,6 @@
 
             if (!loggedInDoctor || !localDoctor) return <div className="p-20 text-center font-black uppercase text-slate-900">Carregando painel...</div>;
 
-            const doctorAppointments = appointments.filter(a => 
-                a.doctorId === loggedInId && 
-                (!loggedInProfessionalId || a.professionalId === loggedInProfessionalId)
-            );
-
             const handleAddProfessional = () => {
                 if (!newProf.name || !localDoctor) return;
                 const companyDays = localDoctor.workConfig?.daysOfWeek || [1, 2, 3, 4, 5];
@@ -1904,8 +2281,9 @@
             };
 
             const renderAppointmentCards = (appsList) => {
-                const activeApps = appsList.filter(a => a.status !== 'cancelled');
-                const cancelledApps = appsList.filter(a => a.status === 'cancelled');
+                const visibleApps = (appsList || []).filter(a => a && !a.rescheduledToId && a.status !== 'rescheduled');
+                const activeApps = visibleApps.filter(a => a.status !== 'cancelled');
+                const cancelledApps = visibleApps.filter(a => a.status === 'cancelled');
 
                 const renderGrouped = (list) => {
                     const grouped = list.reduce((acc, app) => {
@@ -1927,18 +2305,46 @@
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {apps.map(app => (
-                                        <div key={app.id} className={`p-6 flex flex-col md:flex-row justify-between items-center gap-6 transition-all ${app.status === 'cancelled' ? 'opacity-50 bg-slate-50' : 'bg-white'}`}>
+                                        <div key={app.id} className={`p-6 flex flex-col md:flex-row justify-between items-center gap-6 transition-all ${app.status === 'cancelled' ? 'opacity-50 bg-slate-50' : (app.status === 'completed' ? 'bg-emerald-50/30 border-l-4 border-emerald-600' : 'bg-white')}`}>
                                             <div className="flex gap-6 items-center w-full md:w-auto">
-                                                <div className={`w-16 h-16 flex flex-col items-center justify-center font-black shrink-0 ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : 'bg-red-600 text-white shadow-lg'}`}>
+                                                <div className={`w-16 h-16 flex flex-col items-center justify-center font-black shrink-0 ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : (app.status === 'completed' ? 'bg-emerald-600 text-white shadow-md' : 'bg-red-600 text-white shadow-lg')}`}>
                                                     <span className="text-[18px]">{app.time}</span>
+                                                    {app.duration && app.isExtendedTime && (
+                                                        <span className="text-[7px] font-black uppercase tracking-tighter opacity-90">{app.duration}M</span>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <p className="font-black uppercase text-slate-900 text-lg">{app.patientName}</p>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className="font-black uppercase text-slate-900 text-lg">{app.patientName}</p>
+                                                        {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
+                                                            <span className="px-2.5 py-0.5 bg-amber-500 text-white text-[9px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
+                                                                <i className="fas fa-history"></i> Reagendamento
+                                                            </span>
+                                                        )}
+                                                        {app.status === 'completed' && (
+                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase rounded border border-emerald-300 flex items-center gap-1">
+                                                                <i className="fas fa-check-circle text-emerald-600"></i> CONCLUÍDA
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <p className="text-xs font-bold text-slate-900 uppercase tracking-widest">{app.patientCPF} • {app.patientPhone}</p>
+                                                    
+                                                    {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
+                                                        <p className="text-[9px] font-black text-amber-700 uppercase mt-1 flex items-center gap-1">
+                                                            <i className="fas fa-sync-alt text-amber-600"></i>
+                                                            Reagendamento {app.rescheduledFromDate ? `(Anterior: ${formatDateLong(app.rescheduledFromDate)} às ${app.rescheduledFromTime || ''})` : ''}
+                                                        </p>
+                                                    )}
                                                     {app.document && (
                                                         <p className="text-[8px] font-black text-emerald-600 uppercase mt-1">
                                                             <i className="fas fa-file-alt mr-1"></i>
                                                             Documento: {app.document.name}
+                                                        </p>
+                                                    )}
+                                                    {app.notes && (
+                                                        <p className="text-[9px] font-bold text-slate-600 uppercase mt-1">
+                                                            <i className="fas fa-sticky-note text-amber-500 mr-1"></i>
+                                                            Notas: {app.notes}
                                                         </p>
                                                     )}
                                                     {isCompanyView && (
@@ -1949,20 +2355,35 @@
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+                                            <div className="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
                                                 {app.status === 'cancelled' ? (
                                                     <button 
-                                                        onClick={() => {
-                                                            setReschedulingApp(app);
-                                                            setNewRescheduleDate(app.date || '');
-                                                            setNewRescheduleTime(app.time || '08:00');
-                                                        }} 
+                                                        onClick={() => handleStartReschedule(app)} 
                                                         className="px-6 py-2 bg-red-600 text-white text-xs font-black uppercase hover:bg-red-700 transition-colors active-scale flex items-center gap-2 shadow-sm"
                                                     >
                                                         <i className="fas fa-calendar-alt"></i> REAGENDAR
                                                     </button>
+                                                ) : app.status === 'completed' ? (
+                                                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                                                        <button 
+                                                            onClick={() => handleStartReschedule(app)} 
+                                                            className="px-6 py-2.5 bg-red-600 text-white text-xs font-black uppercase hover:bg-red-700 transition-all active-scale flex items-center gap-2 shadow-md"
+                                                        >
+                                                            <i className="fas fa-calendar-alt"></i> REAGENDAR
+                                                        </button>
+                                                    </div>
                                                 ) : (
                                                     <>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                await onUpdateAppointment(app.id, { status: 'completed' });
+                                                                showNotification('Consulta marcada como CONCLUÍDA!');
+                                                            }}
+                                                            className="px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-1.5 shadow-sm active-scale"
+                                                            title="Marcar consulta como concluída"
+                                                        >
+                                                            <i className="fas fa-check"></i> CONCLUÍDO
+                                                        </button>
                                                         <div className="relative">
                                                             <input 
                                                                 type="file" 
@@ -2032,7 +2453,6 @@
                 );
             };
 
-            const cancelledApps = (doctorAppointments || []).filter(app => app && app.status === 'cancelled');
             const mySupportMessages = (supportMessages || []).filter(m => {
                 if (!m) return false;
                 const isDocMatch = m.doctorId === loggedInId || m.doctorId === displayDoctor?.id;
@@ -2045,10 +2465,330 @@
                 }
             });
 
+            if (reschedulingApp) {
+                return (
+                    <div className="lg:max-w-none mx-auto animate-slide-up px-4 lg:px-0 space-y-8 my-6">
+                        {/* Page Top Header Bar */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 border border-slate-200 border-b-4 border-red-600 shadow-xl">
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    onClick={() => setReschedulingApp(null)}
+                                    className="px-4 py-2.5 bg-slate-900 hover:bg-black text-white font-black uppercase text-xs tracking-widest flex items-center gap-2 transition-all shadow-md active-scale shrink-0"
+                                >
+                                    <i className="fas fa-arrow-left"></i> VOLTAR AO PAINEL
+                                </button>
+                                <div>
+                                    <span className="text-[9px] font-black text-red-600 uppercase tracking-widest block">ASSISTENTE DE REAGENDAMENTO</span>
+                                    <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-900">
+                                        Reagendar Consulta
+                                    </h2>
+                                </div>
+                            </div>
+                            <div className="text-left sm:text-right">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Profissional / Clínica</span>
+                                <span className="text-xs font-black uppercase text-slate-900">{displayDoctor?.name}</span>
+                            </div>
+                        </div>
+
+                        {/* Page Content Card */}
+                        <div className="bg-white border-2 border-slate-200 p-6 md:p-10 shadow-2xl space-y-8">
+                            {/* Patient Info Header */}
+                            <div className="bg-slate-50 p-5 border border-slate-200 rounded space-y-2 text-xs">
+                                <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <p className="font-black uppercase text-slate-900 text-sm">
+                                        <i className="fas fa-user-circle text-red-600 mr-2 text-base"></i>
+                                        Paciente: {reschedulingApp.patientName}
+                                    </p>
+                                    {reschedulingApp.patientPhone && (
+                                        <span className="text-[11px] font-bold text-slate-700 uppercase bg-white px-3 py-1 border border-slate-200 rounded">
+                                            <i className="fas fa-phone-alt mr-1 text-red-600"></i> {reschedulingApp.patientPhone}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-4 pt-1 text-slate-600 font-bold uppercase text-[11px]">
+                                    <span>CPF: <strong className="text-slate-900">{reschedulingApp.patientCPF || 'N/A'}</strong></span>
+                                    <span>•</span>
+                                    <span className="text-red-600">
+                                        <i className="fas fa-history mr-1"></i> Data Anterior: <strong>{formatDateLong(reschedulingApp.date)} às {reschedulingApp.time}</strong>
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Question: Standard vs Extended Time */}
+                            <div className="bg-slate-50 p-6 border-2 border-slate-200 rounded space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
+                                        <i className="fas fa-question text-sm font-black"></i>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wide">
+                                            Esse reagendamento vai seguir um horário padrão ou vai ser em tempo maior?
+                                        </h4>
+                                        <p className="text-[11px] font-bold text-slate-500 uppercase mt-0.5">
+                                            Selecione uma das opções abaixo para calcular os dias e horários disponíveis na agenda:
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setRescheduleType('standard')}
+                                        className={`p-5 border-2 font-black uppercase text-xs transition-all flex flex-col items-center justify-center gap-1.5 text-center rounded ${rescheduleType === 'standard' ? 'border-red-600 bg-red-50 text-red-700 shadow-md ring-2 ring-red-600' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}
+                                    >
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <i className="fas fa-clock text-red-600"></i>
+                                            <span>NÃO (HORÁRIO PADRÃO)</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500">Duração padrão da clínica/profissional</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setRescheduleType('extended')}
+                                        className={`p-5 border-2 font-black uppercase text-xs transition-all flex flex-col items-center justify-center gap-1.5 text-center rounded ${rescheduleType === 'extended' ? 'border-red-600 bg-red-50 text-red-700 shadow-md ring-2 ring-red-600' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'}`}
+                                    >
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <i className="fas fa-hourglass-half text-red-600"></i>
+                                            <span>SIM (TEMPO MAIOR)</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500">Duração customizada + tolerância</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Extended Time Duration & Tolerance Configuration */}
+                            {rescheduleType === 'extended' && (
+                                <div className="p-6 bg-amber-50/60 border border-amber-200 rounded space-y-4 animate-slide-up">
+                                    <h5 className="text-xs font-black uppercase text-amber-900 tracking-wider flex items-center gap-2">
+                                        <i className="fas fa-stopwatch text-amber-600"></i>
+                                        Configuração de Duração e Tolerância
+                                    </h5>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 block">
+                                                Duração da Consulta (minutos)
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="15"
+                                                    max="300"
+                                                    step="5"
+                                                    className="w-full p-3 border border-slate-200 font-black text-xs uppercase bg-white focus:border-red-600 outline-none rounded"
+                                                    value={rescheduleDuration}
+                                                    onChange={(e) => setRescheduleDuration(Number(e.target.value) || 15)}
+                                                />
+                                                <div className="flex gap-1 shrink-0">
+                                                    {[45, 60, 90, 120].map(dur => (
+                                                        <button
+                                                            key={dur}
+                                                            type="button"
+                                                            onClick={() => setRescheduleDuration(dur)}
+                                                            className={`px-2.5 py-1 text-[10px] font-black uppercase rounded border transition-all ${rescheduleDuration === dur ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'}`}
+                                                        >
+                                                            {dur}m
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 block">
+                                                Tolerância para Próxima Consulta (minutos)
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="60"
+                                                    step="5"
+                                                    className="w-full p-3 border border-slate-200 font-black text-xs uppercase bg-white focus:border-red-600 outline-none rounded"
+                                                    value={rescheduleTolerance}
+                                                    onChange={(e) => setRescheduleTolerance(Number(e.target.value) || 0)}
+                                                />
+                                                <div className="flex gap-1 shrink-0">
+                                                    {[5, 10, 15, 20].map(tol => (
+                                                        <button
+                                                            key={tol}
+                                                            type="button"
+                                                            onClick={() => setRescheduleTolerance(tol)}
+                                                            className={`px-2.5 py-1 text-[10px] font-black uppercase rounded border transition-all ${rescheduleTolerance === tol ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'}`}
+                                                        >
+                                                            {tol}m
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="p-3 bg-white border border-amber-200 rounded flex items-center justify-between text-xs">
+                                        <span className="text-[11px] font-black text-slate-600 uppercase">Bloco contínuo calculado na agenda:</span>
+                                        <span className="font-black text-red-600 text-xs sm:text-sm uppercase">
+                                            {Number(rescheduleDuration) + Number(rescheduleTolerance)} Minutos
+                                            <span className="text-[10px] font-medium text-slate-500 ml-1">({rescheduleDuration}m consulta + {rescheduleTolerance}m tolerância)</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Available Days and Times Selection */}
+                            {rescheduleType && (
+                                <div className="space-y-6 animate-slide-up pt-2">
+                                    <div className="space-y-3">
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-900 flex items-center justify-between">
+                                            <span>1. Selecione a Nova Data Disponível</span>
+                                            <span className="text-[10px] font-bold text-slate-500">{calculatedRescheduleSchedule.length} DIA(S) COM VAGAS</span>
+                                        </label>
+                                        
+                                        {calculatedRescheduleSchedule.length === 0 ? (
+                                            <div className="p-6 bg-red-50 border border-red-200 rounded text-center text-xs font-black text-red-700 uppercase space-y-1">
+                                                <p><i className="fas fa-exclamation-triangle mr-1"></i> Nenhum horário contínuo disponível para este bloco na agenda.</p>
+                                                <p className="text-[10px] font-bold text-slate-600">Tente reduzir o tempo de duração ou tolerância, ou revise os dias de trabalho.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide">
+                                                {calculatedRescheduleSchedule.map(day => (
+                                                    <button
+                                                        key={day.date}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRescheduleSelectedDate(day.date);
+                                                            setRescheduleSelectedTime(day.slots[0] || '');
+                                                        }}
+                                                        className={`px-5 py-3.5 border-2 text-left shrink-0 transition-all rounded ${rescheduleSelectedDate === day.date ? 'border-red-600 bg-red-600 text-white shadow-lg ring-2 ring-red-600' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'}`}
+                                                    >
+                                                        <p className="text-[10px] font-black uppercase">{day.label.split(',')[0]}</p>
+                                                        <p className="text-xs font-black uppercase">{day.label.split(',')[1] || day.date}</p>
+                                                        <p className={`text-[9px] font-bold uppercase mt-1 ${rescheduleSelectedDate === day.date ? 'text-red-100' : 'text-slate-500'}`}>{day.slots.length} horário(s)</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {rescheduleSelectedDate && (
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-black uppercase tracking-widest text-slate-900 block">
+                                                2. Selecione o Novo Horário ({formatDateLong(rescheduleSelectedDate)})
+                                            </label>
+                                            {(() => {
+                                                const dayObj = calculatedRescheduleSchedule.find(d => d.date === rescheduleSelectedDate);
+                                                const slots = dayObj?.slots || [];
+                                                if (slots.length === 0) return <p className="text-xs text-red-600 font-bold uppercase">Nenhum horário livre neste dia.</p>;
+                                                return (
+                                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5 p-4 bg-slate-50 border border-slate-200 rounded">
+                                                        {slots.map(slot => (
+                                                            <button
+                                                                key={slot}
+                                                                type="button"
+                                                                onClick={() => setRescheduleSelectedTime(slot)}
+                                                                className={`py-3 px-2 text-center text-xs font-black uppercase rounded transition-all ${rescheduleSelectedTime === slot ? 'bg-red-600 text-white shadow-md ring-2 ring-red-600' : 'bg-white text-slate-800 border border-slate-200 hover:border-red-600'}`}
+                                                            >
+                                                                {slot}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+
+                                    {/* Notes Section */}
+                                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                                        <label className="text-xs font-black uppercase tracking-widest text-slate-900 flex items-center gap-1.5">
+                                            <i className="fas fa-sticky-note text-red-600"></i>
+                                            3. Notas / Observações do Reagendamento
+                                        </label>
+                                        <textarea
+                                            placeholder="Escreva observações clínicas, orientações de preparo, motivo do reagendamento..."
+                                            className="w-full p-4 border border-slate-200 font-bold uppercase text-xs focus:border-red-600 outline-none min-h-[95px] bg-white rounded"
+                                            value={rescheduleNotes}
+                                            onChange={(e) => setRescheduleNotes(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* Attachments Section */}
+                                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-xs font-black uppercase tracking-widest text-slate-900 flex items-center gap-1.5">
+                                                <i className="fas fa-paperclip text-red-600"></i>
+                                                4. Anexos / Documentos
+                                            </label>
+                                            <label className="cursor-pointer px-4 py-2 bg-slate-100 hover:bg-red-600 hover:text-white text-slate-900 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5">
+                                                <i className="fas fa-plus"></i> ADICIONAR DOCUMENTO
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    className="hidden"
+                                                    onChange={handleRescheduleFileUpload}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        {rescheduleAttachments.length === 0 ? (
+                                            <div className="p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded text-center text-xs font-bold text-slate-500 uppercase">
+                                                Nenhum documento anexado. Clique no botão acima para anexar exames, laudos ou guias.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-[160px] overflow-y-auto">
+                                                {rescheduleAttachments.map((att, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded text-xs">
+                                                        <div className="flex items-center gap-2 truncate">
+                                                            <i className="fas fa-file-alt text-red-600"></i>
+                                                            <span className="font-bold text-slate-800 truncate uppercase text-[11px]">{att.name}</span>
+                                                            {att.size && (
+                                                                <span className="text-[9px] text-slate-400 font-bold shrink-0">
+                                                                    ({(att.size / 1024).toFixed(1)} KB)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setRescheduleAttachments(prev => prev.filter((_, i) => i !== idx))}
+                                                            className="text-slate-400 hover:text-red-600 p-1.5 transition-all"
+                                                            title="Remover documento"
+                                                        >
+                                                            <i className="fas fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t-2 border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setReschedulingApp(null)}
+                                    className="sm:w-1/3 py-4 border-2 border-slate-300 text-slate-900 font-black uppercase text-xs hover:bg-slate-100 transition-all rounded tracking-wider flex items-center justify-center gap-2"
+                                >
+                                    <i className="fas fa-arrow-left"></i> VOLTAR AO PAINEL
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={!rescheduleType || !rescheduleSelectedDate || !rescheduleSelectedTime}
+                                    onClick={handleConfirmReschedule}
+                                    className={`sm:w-2/3 py-4 font-black uppercase text-xs transition-all shadow-xl active-scale rounded tracking-widest flex items-center justify-center gap-2 ${(!rescheduleType || !rescheduleSelectedDate || !rescheduleSelectedTime) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                                >
+                                    <i className="fas fa-check-circle"></i> CONFIRMAR REAGENDAMENTO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
             const tabs = [
                 ...(isCompanyView ? [{ id: 'professionals', label: 'PROFISSIONAIS', icon: 'fa-users' }] : []),
                 { id: 'appointments', label: 'AGENDA', icon: 'fa-calendar' },
-                { id: 'notifications', label: `NOTIFICAÇÕES${cancelledApps.length > 0 ? ` (${cancelledApps.length})` : ''}`, icon: 'fa-bell' },
+                { id: 'notifications', label: `NOTIFICAÇÕES${unreadCancelledApps.length > 0 ? ` (${unreadCancelledApps.length})` : ''}`, icon: 'fa-bell' },
                 { id: 'chat', label: `SUPORTE / CHAT${mySupportMessages.length > 0 ? ` (${mySupportMessages.length})` : ''}`, icon: 'fa-comments' },
                 { id: 'profile', label: 'PERFIL', icon: 'fa-user' },
                 { id: 'schedule', label: 'CONFIGURAÇÃO', icon: 'fa-cog' },
@@ -2137,17 +2877,17 @@
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 mt-8 md:mt-0">
-                            {cancelledApps.length > 0 && !notificationsViewed && activeTab !== 'notifications' && (
+                            {unreadCancelledApps.length > 0 && activeTab !== 'notifications' && (
                                 <button 
                                     onClick={() => {
                                         setActiveTab('notifications');
-                                        setNotificationsViewed(true);
+                                        markNotificationsAsViewed();
                                     }}
                                     className="px-4 py-3 bg-red-100 border border-red-300 text-red-700 text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
                                     title="Ver Notificações de Cancelamento"
                                 >
                                     <i className="fas fa-bell text-red-600"></i> NOTIFICAÇÕES
-                                    <span className="bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full animate-pulse">{cancelledApps.length}</span>
+                                    <span className="bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full animate-pulse">{unreadCancelledApps.length}</span>
                                 </button>
                             )}
 
@@ -3009,87 +3749,6 @@
                             </div>
                         )}
                     </div>
-
-                    {reschedulingApp && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white max-w-md w-full border-2 border-slate-900 shadow-2xl p-6 md:p-8 space-y-6 animate-slide-up">
-                                <div className="flex justify-between items-center border-b pb-4">
-                                    <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
-                                        <i className="fas fa-calendar-alt text-red-600"></i> Reagendar Consulta
-                                    </h3>
-                                    <button 
-                                        onClick={() => setReschedulingApp(null)}
-                                        className="text-slate-400 hover:text-slate-900 text-xl font-bold"
-                                    >
-                                        &times;
-                                    </button>
-                                </div>
-
-                                <div className="bg-slate-50 p-4 border border-slate-200 space-y-1 text-xs">
-                                    <p className="font-black uppercase text-slate-900">Paciente: {reschedulingApp.patientName}</p>
-                                    <p className="font-bold text-slate-600 uppercase">CPF: {reschedulingApp.patientCPF || 'N/A'}</p>
-                                    <p className="font-bold text-red-600 uppercase">Anterior: {reschedulingApp.date} às {reschedulingApp.time}</p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 block">
-                                            Nova Data
-                                        </label>
-                                        <input 
-                                            type="date" 
-                                            className="w-full p-3 border border-slate-200 font-bold uppercase text-xs focus:border-red-600 outline-none"
-                                            value={newRescheduleDate}
-                                            onChange={(e) => setNewRescheduleDate(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 block">
-                                            Novo Horário
-                                        </label>
-                                        <input 
-                                            type="time" 
-                                            className="w-full p-3 border border-slate-200 font-bold uppercase text-xs focus:border-red-600 outline-none"
-                                            value={newRescheduleTime}
-                                            onChange={(e) => setNewRescheduleTime(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 pt-4 border-t">
-                                    <button
-                                        onClick={() => setReschedulingApp(null)}
-                                        className="flex-1 py-3 border border-slate-200 text-slate-900 font-black uppercase text-xs hover:bg-slate-100 transition-all"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (!newRescheduleDate || !newRescheduleTime) {
-                                                showNotification("Por favor, preencha a nova data e o novo horário.", "error");
-                                                return;
-                                            }
-                                            try {
-                                                await onUpdateAppointment(reschedulingApp.id, {
-                                                    date: newRescheduleDate,
-                                                    time: newRescheduleTime,
-                                                    status: 'confirmed'
-                                                });
-                                                showNotification(`Agendamento reagendado com sucesso para ${newRescheduleDate} às ${newRescheduleTime}!`);
-                                                setReschedulingApp(null);
-                                            } catch (err) {
-                                                showNotification("Erro ao reagendar consulta.", "error");
-                                            }
-                                        }}
-                                        className="flex-1 py-3 bg-red-600 text-white font-black uppercase text-xs hover:bg-red-700 transition-all shadow-md active-scale"
-                                    >
-                                        Confirmar Reagendamento
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         };
@@ -3913,6 +4572,7 @@
                                     onLogout={() => { setLoggedInDoctorId(null); setLoggedInProfessionalId(null); }} 
                                     onCancelAppointment={handleCancel} 
                                     onUpdateAppointment={handleUpdateAppointment}
+                                    onConfirmAppointment={handleConfirm}
                                     showNotification={showNotification}
                                     showConfirmation={showConfirmation}
                                 />

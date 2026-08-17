@@ -16,7 +16,29 @@ export const DoctorDetails = ({ doctor, appointments, onConfirm }: DoctorDetails
   const availableSlots = useMemo(() => {
     const day = doctor.schedule.find(d => d.date === selectedDayDate);
     if (!day) return [];
-    return day.slots.filter(slot => !appointments.some(app => app.doctorId === doctor.id && app.date === day.label && app.time === slot && app.status === 'confirmed'));
+    const standardDur = Number(doctor.workConfig?.slotDuration) || 30;
+
+    const timeToMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    return day.slots.filter(slot => {
+      const slotStart = timeToMin(slot);
+      const slotEnd = slotStart + standardDur;
+
+      // Check if any confirmed appointment overlaps with this slot
+      return !appointments.some(app => {
+        if (app.doctorId !== doctor.id || app.status !== 'confirmed') return false;
+        if (app.date !== day.date && app.date !== day.label) return false;
+
+        const appStart = timeToMin(app.time);
+        const appDuration = (Number(app.duration) || standardDur) + (Number(app.tolerance) || 0);
+        const appEnd = appStart + appDuration;
+
+        return slotStart < appEnd && slotEnd > appStart;
+      });
+    });
   }, [doctor, selectedDayDate, appointments]);
 
   const finalize = () => {
