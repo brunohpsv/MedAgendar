@@ -6,6 +6,7 @@ export interface BreakConfig {
 
 export interface WorkConfig {
   daysOfWeek: number[];
+  specificDates?: string[];
   startTime: string;
   endTime: string;
   slotDuration: number;

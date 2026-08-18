@@ -260,17 +260,40 @@
         };
 
         const generateScheduleFromConfig = (config) => {
-            if (!config || !config.daysOfWeek) return [];
+            if (!config) return [];
             const schedule = [];
             const today = new Date();
+            const daysOfWeek = config.daysOfWeek || [];
+            const specificDates = config.specificDates || [];
+
+            if (daysOfWeek.length === 0 && specificDates.length === 0) return [];
+
             for (let i = 0; i < 30; i++) {
                 const currentDate = new Date(today);
                 currentDate.setDate(today.getDate() + i);
                 const dayOfWeek = currentDate.getDay();
-                if (config.daysOfWeek.includes(dayOfWeek)) {
+                const year = currentDate.getFullYear();
+                const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+                const dayNum = String(currentDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${dayNum}`;
+
+                const isDayOfWeekMatch = daysOfWeek.includes(dayOfWeek);
+                const isSpecificDateMatch = specificDates.includes(dateStr);
+
+                if (isDayOfWeekMatch || isSpecificDateMatch) {
                     const slots = [];
-                    let currentMin = timeToMin(config.startTime || "08:00");
-                    const endMin = timeToMin(config.endTime || "18:00");
+                    let startTime = config.startTime || "08:00";
+                    let endTime = config.endTime || "18:00";
+                    if (dayOfWeek === 6 && (config.saturdayStartTime || config.saturdayEndTime)) {
+                        startTime = config.saturdayStartTime || config.startTime || "08:00";
+                        endTime = config.saturdayEndTime || "12:00";
+                    } else if (dayOfWeek === 0 && (config.sundayStartTime || config.sundayEndTime)) {
+                        startTime = config.sundayStartTime || config.startTime || "08:00";
+                        endTime = config.sundayEndTime || "12:00";
+                    }
+
+                    let currentMin = timeToMin(startTime);
+                    const endMin = timeToMin(endTime);
                     const duration = Number(config.slotDuration) || 30;
                     const interval = Number(config.minInterval) || 0;
                     
@@ -292,10 +315,6 @@
                         currentMin += duration + interval;
                     }
                     if (slots.length > 0) {
-                        const year = currentDate.getFullYear();
-                        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-                        const dayNum = String(currentDate.getDate()).padStart(2, '0');
-                        const dateStr = `${year}-${month}-${dayNum}`;
                         const labels = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
                         const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
                         const label = `${labels[dayOfWeek]}, ${dayNum} ${months[currentDate.getMonth()]}`;
@@ -310,6 +329,7 @@
         const ADMIN_PASSWORD = 'baratavelha0325A$';
         const DEFAULT_WORK_CONFIG = {
             daysOfWeek: [1, 2, 3, 4, 5],
+            specificDates: [],
             startTime: "08:00",
             endTime: "18:00",
             slotDuration: 30,
@@ -847,10 +867,13 @@
             const activeSchedule = useMemo(() => {
                 const rawSchedule = (selectedProfessional ? selectedProfessional.schedule : doctor.schedule) || [];
                 const daysOfWeek = activeWorkConfig?.daysOfWeek || [1, 2, 3, 4, 5];
+                const specificDates = activeWorkConfig?.specificDates || [];
                 return rawSchedule.filter(day => {
                     if (!day.date || !day.slots || day.slots.length === 0) return false;
+                    const isSpecificDate = specificDates.includes(day.date);
                     const dateObj = new Date(day.date + 'T12:00:00');
-                    return daysOfWeek.includes(dateObj.getDay());
+                    const isDayOfWeek = daysOfWeek.includes(dateObj.getDay());
+                    return isDayOfWeek || isSpecificDate;
                 });
             }, [doctor, selectedProfessional, activeWorkConfig]);
 
@@ -1558,6 +1581,7 @@
             const [groupingRuleDate, setGroupingRuleDate] = useState('');
             const [groupingRuleDays, setGroupingRuleDays] = useState([]);
             const [newProf, setNewProf] = useState({ name: '', specialties: '', image: '' });
+            const [calCurrentDate, setCalCurrentDate] = useState(() => new Date());
             const notifStorageKey = 'medagendar_viewed_cancelled_apps_' + (loggedInProfessionalId ? `${loggedInId}_${loggedInProfessionalId}` : (loggedInId || 'default'));
             const [viewedNotifIds, setViewedNotifIds] = useState(() => {
                 try {
@@ -1601,7 +1625,10 @@
                 const tolerance = isExtended ? (Number(rescheduleTolerance) || 0) : 0;
                 const totalSlotBlock = duration + tolerance;
 
-                if (!activeWorkConfig.daysOfWeek || activeWorkConfig.daysOfWeek.length === 0) return [];
+                const daysOfWeek = activeWorkConfig.daysOfWeek || [];
+                const specificDates = activeWorkConfig.specificDates || [];
+
+                if (daysOfWeek.length === 0 && specificDates.length === 0) return [];
 
                 const scheduleList = [];
                 const today = new Date();
@@ -1610,13 +1637,15 @@
                     const currentDate = new Date(today);
                     currentDate.setDate(today.getDate() + i);
                     const dayOfWeek = currentDate.getDay();
+                    const year = currentDate.getFullYear();
+                    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+                    const dayNum = String(currentDate.getDate()).padStart(2, '0');
+                    const dateStr = `${year}-${month}-${dayNum}`;
 
-                    if (activeWorkConfig.daysOfWeek.includes(dayOfWeek)) {
-                        const year = currentDate.getFullYear();
-                        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-                        const dayNum = String(currentDate.getDate()).padStart(2, '0');
-                        const dateStr = `${year}-${month}-${dayNum}`;
+                    const isDayOfWeekMatch = daysOfWeek.includes(dayOfWeek);
+                    const isSpecificDateMatch = specificDates.includes(dateStr);
 
+                    if (isDayOfWeekMatch || isSpecificDateMatch) {
                         let startT = activeWorkConfig.startTime || "08:00";
                         let endT = activeWorkConfig.endTime || "18:00";
                         if (dayOfWeek === 6 && activeWorkConfig.saturdayStartTime && activeWorkConfig.saturdayEndTime) {
@@ -1939,7 +1968,8 @@
                             const companyDays = updatedDoctor.workConfig?.daysOfWeek || [1, 2, 3, 4, 5];
                             updatedDoctor.professionals = updatedDoctor.professionals.map(p => {
                                 const pDays = (p.workConfig?.daysOfWeek || []).filter(d => companyDays.includes(d));
-                                const pWorkConfig = { ...(p.workConfig || DEFAULT_WORK_CONFIG), daysOfWeek: pDays };
+                                const pSpecificDates = p.workConfig?.specificDates || [];
+                                const pWorkConfig = { ...(p.workConfig || DEFAULT_WORK_CONFIG), daysOfWeek: pDays, specificDates: pSpecificDates };
                                 return {
                                     ...p,
                                     workConfig: pWorkConfig,
@@ -2009,6 +2039,79 @@
                         };
                     });
                 }
+            };
+
+            const toggleSpecificDate = (dateStr) => {
+                const target = displayDoctor;
+                const currentDates = target.workConfig?.specificDates || [];
+                const newDates = currentDates.includes(dateStr)
+                    ? currentDates.filter(d => d !== dateStr)
+                    : [...currentDates, dateStr].sort();
+
+                if (loggedInProfessionalId) {
+                    updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else {
+                    setLocalDoctor(prev => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            workConfig: { ...prev.workConfig, specificDates: newDates }
+                        };
+                    });
+                }
+            };
+
+            const selectAllMonthDates = () => {
+                const target = displayDoctor;
+                const currentDates = new Set(target.workConfig?.specificDates || []);
+                const year = calCurrentDate.getFullYear();
+                const month = calCurrentDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    currentDates.add(dateStr);
+                }
+                const newDates = Array.from(currentDates).sort();
+                if (loggedInProfessionalId) {
+                    updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else {
+                    setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: newDates } }) : null);
+                }
+            };
+
+            const clearMonthDates = () => {
+                const target = displayDoctor;
+                const year = calCurrentDate.getFullYear();
+                const month = calCurrentDate.getMonth();
+                const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+                const currentDates = target.workConfig?.specificDates || [];
+                const newDates = currentDates.filter(d => !d.startsWith(prefix));
+                if (loggedInProfessionalId) {
+                    updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else {
+                    setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: newDates } }) : null);
+                }
+            };
+
+            const clearAllSpecificDates = () => {
+                const target = displayDoctor;
+                if (loggedInProfessionalId) {
+                    updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: [] } });
+                } else {
+                    setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: [] } }) : null);
+                }
+            };
+
+            const handlePrevMonth = () => {
+                setCalCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+            };
+
+            const handleNextMonth = () => {
+                setCalCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+            };
+
+            const handleTodayMonth = () => {
+                setCalCurrentDate(new Date());
             };
 
             const updateBreak = (type, field, value) => {
@@ -2167,7 +2270,8 @@
                         const companyDays = displayDoctor.workConfig.daysOfWeek || [];
                         const updatedProfessionals = (localDoctor.professionals || []).map(p => {
                             const pDays = (p.workConfig?.daysOfWeek || []).filter(d => companyDays.includes(d));
-                            const pWorkConfig = { ...(p.workConfig || {}), daysOfWeek: pDays };
+                            const pSpecificDates = p.workConfig?.specificDates || [];
+                            const pWorkConfig = { ...(p.workConfig || {}), daysOfWeek: pDays, specificDates: pSpecificDates };
                             const pSchedule = generateScheduleFromConfig(pWorkConfig);
                             return {
                                 ...p,
@@ -3578,6 +3682,194 @@
                                             <button key={day} onClick={() => toggleDay(i)} className={`px-6 py-3 text-[10px] font-black border-2 transition-all ${displayDoctor.workConfig.daysOfWeek.includes(i) ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-200 text-slate-900 hover:border-slate-400'}`}>{day}</button>
                                         ))}
                                     </div>
+
+                                    {(() => {
+                                        const calYear = calCurrentDate.getFullYear();
+                                        const calMonth = calCurrentDate.getMonth();
+                                        const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
+                                        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                                        const today = new Date();
+                                        const todayDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                                        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                                        const currentSpecificDates = displayDoctor?.workConfig?.specificDates || [];
+
+                                        return (
+                                            <div className="space-y-4 pt-6 border-t border-slate-200">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                                                            <i className="fas fa-calendar-alt text-red-600"></i> Calendário de Atendimento (Dias Específicos do Mês)
+                                                        </label>
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                                                            Clique nos dias para definir as datas exatas do mês em que você estará atendendo.
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <button
+                                                            type="button"
+                                                            onClick={selectAllMonthDates}
+                                                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[9px] font-black uppercase tracking-wider rounded-sm transition-colors border border-slate-300"
+                                                            title="Marcar todos os dias deste mês"
+                                                        >
+                                                            + Mês Inteiro
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={clearMonthDates}
+                                                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[9px] font-black uppercase tracking-wider rounded-sm transition-colors border border-slate-300"
+                                                            title="Desmarcar dias deste mês"
+                                                        >
+                                                            Limpar Mês
+                                                        </button>
+                                                        {currentSpecificDates.length > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={clearAllSpecificDates}
+                                                                className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-[9px] font-black uppercase tracking-wider rounded-sm transition-colors border border-red-200"
+                                                                title="Desmarcar todas as datas selecionadas"
+                                                            >
+                                                                Limpar Todas as Datas
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Mini Calendário Card */}
+                                                <div className="bg-slate-50 border-2 border-slate-200 p-4 sm:p-6 rounded-sm space-y-4 w-full shadow-xs">
+                                                    {/* Header de Navegação do Mês */}
+                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handlePrevMonth}
+                                                            className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 hover:border-slate-400 hover:bg-slate-100 rounded-sm text-slate-700 font-bold transition-all active-scale"
+                                                            title="Mês anterior"
+                                                        >
+                                                            <i className="fas fa-chevron-left text-xs"></i>
+                                                        </button>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                                                {monthNames[calMonth]} {calYear}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleTodayMonth}
+                                                                className="px-2.5 py-1 bg-white border border-slate-200 hover:border-red-600 text-[8px] font-black uppercase tracking-widest text-slate-600 hover:text-red-600 rounded-sm transition-all"
+                                                            >
+                                                                Hoje
+                                                            </button>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleNextMonth}
+                                                            className="w-9 h-9 flex items-center justify-center bg-white border border-slate-200 hover:border-slate-400 hover:bg-slate-100 rounded-sm text-slate-700 font-bold transition-all active-scale"
+                                                            title="Próximo mês"
+                                                        >
+                                                            <i className="fas fa-chevron-right text-xs"></i>
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Cabeçalho dos Dias da Semana */}
+                                                    <div className="grid grid-cols-7 gap-1 text-center">
+                                                        {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((d, idx) => (
+                                                            <div key={d} className={`text-[9px] font-black uppercase py-1 ${idx === 0 || idx === 6 ? 'text-red-600' : 'text-slate-500'}`}>
+                                                                {d}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    {/* Grade de Dias do Mês */}
+                                                    <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                                                        {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                                                            <div key={'empty-' + idx} className="h-9 sm:h-10 bg-transparent"></div>
+                                                        ))}
+                                                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                                                            const dayNum = i + 1;
+                                                            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                                                            const isSelected = currentSpecificDates.includes(dateStr);
+                                                            const isToday = dateStr === todayDateStr;
+                                                            const dayOfWeekIndex = new Date(calYear, calMonth, dayNum).getDay();
+                                                            const isDayOfWeekActive = (displayDoctor?.workConfig?.daysOfWeek || []).includes(dayOfWeekIndex);
+
+                                                            return (
+                                                                <button
+                                                                    key={dateStr}
+                                                                    type="button"
+                                                                    onClick={() => toggleSpecificDate(dateStr)}
+                                                                    className={`h-9 sm:h-10 rounded-sm font-black text-xs flex flex-col items-center justify-center transition-all relative border active-scale ${
+                                                                        isSelected 
+                                                                            ? 'bg-red-600 border-red-600 text-white shadow-md ring-2 ring-red-300' 
+                                                                            : isDayOfWeekActive
+                                                                            ? 'bg-red-50 border-red-200 text-slate-900 hover:bg-red-100 hover:border-red-400'
+                                                                            : 'bg-white border-slate-200 text-slate-800 hover:border-slate-400 hover:bg-slate-50'
+                                                                    }`}
+                                                                    title={isSelected ? `${dayNum} de ${monthNames[calMonth]} (Data específica selecionada)` : `Clique para alternar ${dayNum} de ${monthNames[calMonth]}`}
+                                                                >
+                                                                    <span className="leading-none">{dayNum}</span>
+                                                                    {isToday && (
+                                                                        <span className={`text-[6px] leading-none uppercase font-black mt-0.5 ${isSelected ? 'text-white' : 'text-red-600'}`}>
+                                                                            HOJE
+                                                                        </span>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Legenda */}
+                                                    <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-[9px] font-bold text-slate-600 uppercase">
+                                                        <div className="flex items-center gap-3 flex-wrap">
+                                                            <span className="flex items-center gap-1.5">
+                                                                <span className="w-3.5 h-3.5 bg-red-600 rounded-sm inline-block shadow-xs"></span> Data Específica
+                                                            </span>
+                                                            <span className="flex items-center gap-1.5">
+                                                                <span className="w-3.5 h-3.5 bg-red-50 border border-red-200 rounded-sm inline-block"></span> Padrão Semanal
+                                                            </span>
+                                                            <span className="flex items-center gap-1.5">
+                                                                <span className="w-3.5 h-3.5 bg-white border border-slate-200 rounded-sm inline-block"></span> Sem Atendimento
+                                                            </span>
+                                                        </div>
+                                                        <div className="font-black text-slate-900">
+                                                            {currentSpecificDates.length} {currentSpecificDates.length === 1 ? 'DATA SELECIONADA' : 'DATAS SELECIONADAS'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Lista / Tags das Datas Marcadas */}
+                                                    {currentSpecificDates.length > 0 && (
+                                                        <div className="pt-3 border-t border-slate-200 space-y-2">
+                                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 block">Datas Marcadas no Calendário:</span>
+                                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                                                                {currentSpecificDates.map((dateStr) => {
+                                                                    const [y, m, d] = dateStr.split('-');
+                                                                    const dNum = parseInt(d, 10);
+                                                                    const mNum = parseInt(m, 10) - 1;
+                                                                    const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                                                                    return (
+                                                                        <span
+                                                                            key={dateStr}
+                                                                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-red-200 text-red-700 text-[9px] font-black uppercase rounded-sm shadow-xs"
+                                                                        >
+                                                                            {dNum} {shortMonths[mNum]} {y}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    toggleSpecificDate(dateStr);
+                                                                                }}
+                                                                                className="text-slate-400 hover:text-red-600 transition-colors ml-0.5 text-xs font-bold leading-none"
+                                                                                title="Remover data"
+                                                                            >
+                                                                                &times;
+                                                                            </button>
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

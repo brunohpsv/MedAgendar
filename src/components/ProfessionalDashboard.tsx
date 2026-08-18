@@ -16,6 +16,7 @@ interface ProfessionalDashboardProps {
 export const ProfessionalDashboard = ({ doctors, appointments, setDoctors, loggedInId, onLogin, onLogout, onCancelAppointment }: ProfessionalDashboardProps) => {
   const [accessCode, setAccessCode] = useState('');
   const [activeTab, setActiveTab] = useState('appointments');
+  const [calCurrentDate, setCalCurrentDate] = useState(() => new Date());
   const loggedInDoctor = doctors.find(d => d.id === loggedInId);
 
   const handleLogin = () => {
@@ -393,7 +394,7 @@ export const ProfessionalDashboard = ({ doctors, appointments, setDoctors, logge
               </div>
 
               <div className="space-y-4">
-                <label className="text-[9px] font-black uppercase text-slate-400">Dias de Atendimento</label>
+                <label className="text-[9px] font-black uppercase text-slate-400">Dias de Atendimento (Dias da Semana)</label>
                 <div className="flex flex-wrap gap-2">
                   {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'].map((day, idx) => (
                     <button
@@ -409,6 +410,133 @@ export const ProfessionalDashboard = ({ doctors, appointments, setDoctors, logge
                     </button>
                   ))}
                 </div>
+
+                {(() => {
+                  const calYear = calCurrentDate.getFullYear();
+                  const calMonth = calCurrentDate.getMonth();
+                  const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
+                  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                  const today = new Date();
+                  const todayDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                  const currentSpecificDates = loggedInDoctor?.workConfig?.specificDates || [];
+
+                  const toggleSpecificDate = (dateStr: string) => {
+                    const newDates = currentSpecificDates.includes(dateStr)
+                      ? currentSpecificDates.filter((d: string) => d !== dateStr)
+                      : [...currentSpecificDates, dateStr].sort();
+                    updateDoctor({ workConfig: { ...loggedInDoctor!.workConfig, specificDates: newDates } });
+                  };
+
+                  const selectAllMonth = () => {
+                    const setDates = new Set(currentSpecificDates);
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      setDates.add(`${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+                    }
+                    updateDoctor({ workConfig: { ...loggedInDoctor!.workConfig, specificDates: Array.from(setDates).sort() } });
+                  };
+
+                  const clearMonth = () => {
+                    const prefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-`;
+                    const newDates = currentSpecificDates.filter((d: string) => !d.startsWith(prefix));
+                    updateDoctor({ workConfig: { ...loggedInDoctor!.workConfig, specificDates: newDates } });
+                  };
+
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-slate-800 flex items-center gap-2">
+                            Calendário de Atendimento (Dias Específicos do Mês)
+                          </label>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                            Clique nos dias para selecionar as datas do mês em que você estará atendendo.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={selectAllMonth}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black uppercase rounded-sm"
+                          >
+                            + Mês Todo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={clearMonth}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black uppercase rounded-sm"
+                          >
+                            Limpar Mês
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 p-4 rounded-sm space-y-3 w-full">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <button
+                            type="button"
+                            onClick={() => setCalCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-700 text-xs font-bold"
+                          >
+                            &lt;
+                          </button>
+                          <span className="text-xs font-black uppercase text-slate-900">
+                            {monthNames[calMonth]} {calYear}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCalCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-700 text-xs font-bold"
+                          >
+                            &gt;
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-500 uppercase">
+                          {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'].map(d => (
+                            <div key={d}>{d}</div>
+                          ))}
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1">
+                          {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                            <div key={'empty-' + idx} className="h-8"></div>
+                          ))}
+                          {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const dayNum = i + 1;
+                            const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                            const isSelected = currentSpecificDates.includes(dateStr);
+                            const isToday = dateStr === todayDateStr;
+                            const dayOfWeekIndex = new Date(calYear, calMonth, dayNum).getDay();
+                            const isDayOfWeekActive = (loggedInDoctor?.workConfig?.daysOfWeek || []).includes(dayOfWeekIndex);
+
+                            return (
+                              <button
+                                key={dateStr}
+                                type="button"
+                                onClick={() => toggleSpecificDate(dateStr)}
+                                className={`h-8 rounded-sm font-black text-xs flex flex-col items-center justify-center border transition-all ${
+                                  isSelected
+                                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
+                                    : isDayOfWeekActive
+                                    ? 'bg-red-50 border-red-200 text-slate-900'
+                                    : 'bg-white border-slate-200 text-slate-800'
+                                }`}
+                              >
+                                <span className="leading-none">{dayNum}</span>
+                                {isToday && <span className="text-[5px] uppercase font-black">HOJE</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200 flex justify-between text-[8px] font-bold text-slate-500 uppercase">
+                          <span>{currentSpecificDates.length} Datas Selecionadas</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase text-slate-400">Duração de cada Consulta (Minutos)</label>

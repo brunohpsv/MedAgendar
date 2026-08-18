@@ -4,6 +4,7 @@ export const ADMIN_PASSWORD = 'baratavelha0325A$';
 
 export const DEFAULT_WORK_CONFIG = {
   daysOfWeek: [1, 2, 3, 4, 5],
+  specificDates: [],
   startTime: "08:00",
   endTime: "18:00",
   slotDuration: 30,
