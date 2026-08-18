@@ -1581,6 +1581,7 @@
             const [groupingRuleDate, setGroupingRuleDate] = useState('');
             const [groupingRuleDays, setGroupingRuleDays] = useState([]);
             const [newProf, setNewProf] = useState({ name: '', specialties: '', image: '' });
+            const [editingProfessionalId, setEditingProfessionalId] = useState('company');
             const [calCurrentDate, setCalCurrentDate] = useState(() => new Date());
             const notifStorageKey = 'medagendar_viewed_cancelled_apps_' + (loggedInProfessionalId ? `${loggedInId}_${loggedInProfessionalId}` : (loggedInId || 'default'));
             const [viewedNotifIds, setViewedNotifIds] = useState(() => {
@@ -2004,8 +2005,25 @@
                 }
             };
 
+            const updateTargetScheduleConfig = (updates) => {
+                if (!localDoctor) return;
+                if (loggedInProfessionalId) {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === loggedInProfessionalId ? { ...p, ...updates } : p)
+                    }) : null);
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? { ...p, ...updates } : p)
+                    }) : null);
+                } else {
+                    setLocalDoctor(prev => prev ? ({ ...prev, ...updates }) : null);
+                }
+            };
+
             const toggleDay = (day) => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 const currentDays = target.workConfig.daysOfWeek || [];
                 const newDays = currentDays.includes(day) 
                     ? currentDays.filter(d => d !== day)
@@ -2018,6 +2036,19 @@
                         return;
                     }
                     updateActiveProfessional({ workConfig: { ...target.workConfig, daysOfWeek: newDays } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    const companyDays = localDoctor?.workConfig?.daysOfWeek || [1, 2, 3, 4, 5];
+                    if (!currentDays.includes(day) && !companyDays.includes(day)) {
+                        showNotification("A empresa não atende neste dia da semana.", "error");
+                        return;
+                    }
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, daysOfWeek: newDays }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => {
                         if (!prev) return null;
@@ -2042,7 +2073,7 @@
             };
 
             const toggleSpecificDate = (dateStr) => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 const currentDates = target.workConfig?.specificDates || [];
                 const newDates = currentDates.includes(dateStr)
                     ? currentDates.filter(d => d !== dateStr)
@@ -2050,6 +2081,14 @@
 
                 if (loggedInProfessionalId) {
                     updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, specificDates: newDates }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => {
                         if (!prev) return null;
@@ -2062,7 +2101,7 @@
             };
 
             const selectAllMonthDates = () => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 const currentDates = new Set(target.workConfig?.specificDates || []);
                 const year = calCurrentDate.getFullYear();
                 const month = calCurrentDate.getMonth();
@@ -2074,13 +2113,21 @@
                 const newDates = Array.from(currentDates).sort();
                 if (loggedInProfessionalId) {
                     updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, specificDates: newDates }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: newDates } }) : null);
                 }
             };
 
             const clearMonthDates = () => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 const year = calCurrentDate.getFullYear();
                 const month = calCurrentDate.getMonth();
                 const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
@@ -2088,15 +2135,31 @@
                 const newDates = currentDates.filter(d => !d.startsWith(prefix));
                 if (loggedInProfessionalId) {
                     updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: newDates } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, specificDates: newDates }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: newDates } }) : null);
                 }
             };
 
             const clearAllSpecificDates = () => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 if (loggedInProfessionalId) {
                     updateActiveProfessional({ workConfig: { ...target.workConfig, specificDates: [] } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, specificDates: [] }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => prev ? ({ ...prev, workConfig: { ...prev.workConfig, specificDates: [] } }) : null);
                 }
@@ -2115,20 +2178,28 @@
             };
 
             const updateBreak = (type, field, value) => {
-                const target = displayDoctor;
+                const target = scheduleDoctor;
                 const newBreaks = { ...(target.workConfig.breaks || {}) };
                 newBreaks[type] = { ...(newBreaks[type] || {}), [field]: value };
                 
                 if (loggedInProfessionalId) {
                     updateActiveProfessional({ workConfig: { ...target.workConfig, breaks: newBreaks } });
+                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                    setLocalDoctor(prev => prev ? ({
+                        ...prev,
+                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                            ...p,
+                            workConfig: { ...p.workConfig, breaks: newBreaks }
+                        } : p)
+                    }) : null);
                 } else {
                     setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, breaks: newBreaks } }));
                 }
             };
 
             const applyGrouping = async () => {
-                if (!displayDoctor || !localDoctor) return;
-                const target = displayDoctor;
+                if (!scheduleDoctor || !localDoctor) return;
+                const target = scheduleDoctor;
                 const newConfig = { ...target.workConfig };
                 const currentRules = [...(newConfig.groupingRules || [])];
                 
@@ -2195,6 +2266,13 @@
                         const updatedDoctor = { ...localDoctor, professionals: updatedProfessionals };
                         setLocalDoctor(updatedDoctor);
                         await setDoctors(localDoctor.id, { professionals: updatedProfessionals });
+                    } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                        const updatedProfessionals = (localDoctor.professionals || []).map(p => 
+                            p.id === editingProfessionalId ? { ...p, ...finalUpdates } : p
+                        );
+                        const updatedDoctor = { ...localDoctor, professionals: updatedProfessionals };
+                        setLocalDoctor(updatedDoctor);
+                        await setDoctors(localDoctor.id, { professionals: updatedProfessionals });
                     } else {
                         const updatedDoctor = { ...localDoctor, ...finalUpdates };
                         setLocalDoctor(updatedDoctor);
@@ -2242,12 +2320,12 @@
             };
 
             const getAllPossibleSlots = () => {
-                if (!displayDoctor) return [];
+                if (!scheduleDoctor) return [];
                 const slots = [];
-                let currentMin = timeToMin(displayDoctor.workConfig.startTime);
-                const endMin = timeToMin(displayDoctor.workConfig.endTime);
-                const duration = displayDoctor.workConfig.slotDuration;
-                const interval = displayDoctor.workConfig.minInterval || 0;
+                let currentMin = timeToMin(scheduleDoctor.workConfig.startTime);
+                const endMin = timeToMin(scheduleDoctor.workConfig.endTime);
+                const duration = scheduleDoctor.workConfig.slotDuration;
+                const interval = scheduleDoctor.workConfig.minInterval || 0;
                 while (currentMin + duration <= endMin) {
                     slots.push(minToTime(currentMin));
                     currentMin += duration + interval;
@@ -2256,18 +2334,25 @@
             };
 
             const handleRegenerateSchedule = async () => {
-                if (!displayDoctor || !localDoctor) return;
-                const newSchedule = generateScheduleFromConfig(displayDoctor.workConfig);
+                if (!scheduleDoctor || !localDoctor) return;
+                const newSchedule = generateScheduleFromConfig(scheduleDoctor.workConfig);
                 try {
                     if (loggedInProfessionalId) {
                         const updatedProfessionals = (localDoctor.professionals || []).map(p => 
-                            p.id === loggedInProfessionalId ? { ...p, schedule: newSchedule, workConfig: displayDoctor.workConfig } : p
+                            p.id === loggedInProfessionalId ? { ...p, schedule: newSchedule, workConfig: scheduleDoctor.workConfig, maxSlotsPerTime: scheduleDoctor.maxSlotsPerTime || 1 } : p
+                        );
+                        const updatedDoctor = { ...localDoctor, professionals: updatedProfessionals };
+                        setLocalDoctor(updatedDoctor);
+                        await setDoctors(localDoctor.id, { professionals: updatedProfessionals });
+                    } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                        const updatedProfessionals = (localDoctor.professionals || []).map(p => 
+                            p.id === editingProfessionalId ? { ...p, schedule: newSchedule, workConfig: scheduleDoctor.workConfig, maxSlotsPerTime: scheduleDoctor.maxSlotsPerTime || 1 } : p
                         );
                         const updatedDoctor = { ...localDoctor, professionals: updatedProfessionals };
                         setLocalDoctor(updatedDoctor);
                         await setDoctors(localDoctor.id, { professionals: updatedProfessionals });
                     } else {
-                        const companyDays = displayDoctor.workConfig.daysOfWeek || [];
+                        const companyDays = scheduleDoctor.workConfig.daysOfWeek || [];
                         const updatedProfessionals = (localDoctor.professionals || []).map(p => {
                             const pDays = (p.workConfig?.daysOfWeek || []).filter(d => companyDays.includes(d));
                             const pSpecificDates = p.workConfig?.specificDates || [];
@@ -2282,13 +2367,15 @@
                         const updatedDoctor = { 
                             ...localDoctor, 
                             schedule: newSchedule, 
-                            workConfig: displayDoctor.workConfig,
+                            workConfig: scheduleDoctor.workConfig,
+                            maxSlotsPerTime: scheduleDoctor.maxSlotsPerTime || 1,
                             professionals: updatedProfessionals
                         };
                         setLocalDoctor(updatedDoctor);
                         await setDoctors(localDoctor.id, { 
                             schedule: newSchedule, 
-                            workConfig: displayDoctor.workConfig,
+                            workConfig: scheduleDoctor.workConfig,
+                            maxSlotsPerTime: scheduleDoctor.maxSlotsPerTime || 1,
                             professionals: updatedProfessionals
                         });
                     }
@@ -2336,7 +2423,19 @@
             const activeProfessional = loggedInProfessionalId 
                 ? ((localDoctor?.professionals || []).find(p => p.id === loggedInProfessionalId) || (loggedInDoctor?.professionals || []).find(p => p.id === loggedInProfessionalId)) 
                 : null;
+            
+            // For schedule tab editing: if isCompanyView and a specific professional is selected, edit that professional
+            const isEditingSpecificProf = isCompanyView && editingProfessionalId && editingProfessionalId !== 'company';
+            const selectedCompanyProf = isEditingSpecificProf 
+                ? (localDoctor?.professionals || []).find(p => p.id === editingProfessionalId) 
+                : null;
+            
+            // displayDoctor is used across general dashboard views
             const displayDoctor = activeProfessional || localDoctor || loggedInDoctor;
+            // scheduleDoctor is specifically the target doctor being configured in the schedule settings tab
+            const scheduleDoctor = isCompanyView 
+                ? (selectedCompanyProf || localDoctor || loggedInDoctor)
+                : displayDoctor;
 
             if (!loggedInDoctor || !localDoctor) return <div className="p-20 text-center font-black uppercase text-slate-900">Carregando painel...</div>;
 
@@ -3431,11 +3530,98 @@
                         )}
                         {activeTab === 'schedule' && (
                             <div className="lg:max-w-none space-y-10">
-                                <h3 className="text-lg font-black uppercase tracking-tighter border-b pb-4">Configurações de Agenda</h3>
+                                <div className="border-b pb-4">
+                                    <h3 className="text-lg font-black uppercase tracking-tighter">Configurações de Agenda</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                        {isCompanyView 
+                                            ? "Selecione a empresa ou um profissional cadastrado para organizar e configurar individualmente os dias e horários de atendimento." 
+                                            : "Configure seus dias e horários de atendimento e capacidade de pacientes."}
+                                    </p>
+                                </div>
+
+                                {isCompanyView && (
+                                    <div className="p-6 bg-slate-50 border-2 border-slate-200 rounded-sm space-y-4">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                                                    <i className="fas fa-user-md text-red-600"></i> Selecionar Profissional / Empresa para Configurar Agenda
+                                                </label>
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                                                    Escolha de quem você deseja alterar os dias e horários de atendimento:
+                                                </p>
+                                            </div>
+                                            <span className="px-3 py-1 bg-red-100 text-red-700 text-[9px] font-black uppercase rounded-full self-start sm:self-auto">
+                                                Editando: {scheduleDoctor?.name || 'Empresa'}
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingProfessionalId('company')}
+                                                className={`p-4 border-2 text-left transition-all rounded-sm flex items-center justify-between ${
+                                                    (!editingProfessionalId || editingProfessionalId === 'company')
+                                                        ? 'bg-red-600 border-red-600 text-white shadow-md'
+                                                        : 'bg-white border-slate-200 text-slate-900 hover:border-slate-400'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase">
+                                                        <i className="fas fa-building mr-2"></i>
+                                                        {localDoctor?.name || 'Toda a Empresa'}
+                                                    </p>
+                                                    <p className={`text-[8px] font-bold uppercase mt-0.5 ${(!editingProfessionalId || editingProfessionalId === 'company') ? 'text-red-100' : 'text-slate-500'}`}>
+                                                        Agenda Geral da Empresa
+                                                    </p>
+                                                </div>
+                                                {(!editingProfessionalId || editingProfessionalId === 'company') && (
+                                                    <i className="fas fa-check-circle text-xs"></i>
+                                                )}
+                                            </button>
+
+                                            {(localDoctor?.professionals || []).map((prof) => {
+                                                const isSelected = editingProfessionalId === prof.id;
+                                                return (
+                                                    <button
+                                                        key={prof.id}
+                                                        type="button"
+                                                        onClick={() => setEditingProfessionalId(prof.id)}
+                                                        className={`p-4 border-2 text-left transition-all rounded-sm flex items-center justify-between ${
+                                                            isSelected
+                                                                ? 'bg-red-600 border-red-600 text-white shadow-md'
+                                                                : 'bg-white border-slate-200 text-slate-900 hover:border-slate-400'
+                                                        }`}
+                                                    >
+                                                        <div>
+                                                            <p className="text-[11px] font-black uppercase">
+                                                                <i className="fas fa-user-md mr-2"></i>
+                                                                {prof.name}
+                                                            </p>
+                                                            <p className={`text-[8px] font-bold uppercase mt-0.5 ${isSelected ? 'text-red-100' : 'text-slate-500'}`}>
+                                                                {prof.specialties && prof.specialties.length > 0 ? prof.specialties.join(', ') : 'Profissional'}
+                                                                {prof.status === 'suspended' && ' (SUSPENSO)'}
+                                                            </p>
+                                                        </div>
+                                                        {isSelected && (
+                                                            <i className="fas fa-check-circle text-xs"></i>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 <div className="space-y-6">
                                     <div className="flex justify-between items-center border-b pb-4">
-                                        <label className="text-[11px] font-black uppercase tracking-widest text-slate-900 block">Dias de Atendimento</label>
+                                        <div>
+                                            <label className="text-[11px] font-black uppercase tracking-widest text-slate-900 block">
+                                                Dias de Atendimento {isCompanyView && <span className="text-red-600 font-bold">({scheduleDoctor?.name})</span>}
+                                            </label>
+                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                                                Selecione os dias da semana em que há atendimento
+                                            </p>
+                                        </div>
                                         <button 
                                             onClick={() => setIsGroupingOpen(!isGroupingOpen)}
                                             className="px-4 py-2 bg-red-600 text-white font-black text-[11px] uppercase tracking-widest hover:bg-red-700 transition-all"
@@ -3446,7 +3632,9 @@
 
                                     {isGroupingOpen && (
                                         <div className="p-6 bg-slate-50 border-l-4 border-red-600 animate-slide-up space-y-6">
-                                            <h4 className="text-slate-900 font-black text-[12px] uppercase tracking-[0.2em] mb-4">Configurar Pacientes por Horário</h4>
+                                            <h4 className="text-slate-900 font-black text-[12px] uppercase tracking-[0.2em] mb-4">
+                                                Configurar Pacientes por Horário {isCompanyView && `(${scheduleDoctor?.name})`}
+                                            </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
                                                 {/* Coluna 1: Seleção de Horários (Compacta) */}
                                                 <div className="space-y-2">
@@ -3606,7 +3794,7 @@
                                                         <i className="fas fa-clipboard-list text-red-600 mr-2"></i>
                                                         Registro de Regras Aplicadas
                                                     </h5>
-                                                    <span className="text-[8px] font-bold text-slate-900 uppercase">Total: {(displayDoctor.workConfig.groupingRules || []).length + 1} Regras</span>
+                                                    <span className="text-[8px] font-bold text-slate-900 uppercase">Total: {(scheduleDoctor.workConfig?.groupingRules || []).length + 1} Regras</span>
                                                 </div>
                                                 
                                                 <div className="grid grid-cols-1 gap-3">
@@ -3618,15 +3806,15 @@
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="px-3 py-1 bg-white text-slate-900 text-[10px] font-black rounded-full border border-slate-200">
-                                                                {displayDoctor.maxSlotsPerTime || 1} PACIENTES
+                                                                {scheduleDoctor.maxSlotsPerTime || 1} PACIENTES
                                                             </span>
                                                         </div>
                                                     </div>
 
                                                     {/* Novas Regras em Lista */}
-                                                    {(displayDoctor.workConfig.groupingRules || []).length > 0 ? (
+                                                    {(scheduleDoctor.workConfig?.groupingRules || []).length > 0 ? (
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                            {displayDoctor.workConfig.groupingRules.map((rule) => (
+                                                            {scheduleDoctor.workConfig.groupingRules.map((rule) => (
                                                                 <div key={rule.id} className="flex flex-col p-3 bg-white border border-slate-200 border-l-4 border-red-600 rounded hover:shadow-md transition-all relative group">
                                                                     <div className="flex justify-between items-start mb-2">
                                                                         <div className="flex flex-wrap gap-1">
@@ -3644,9 +3832,17 @@
                                                                         </div>
                                                                         <button 
                                                                             onClick={() => {
-                                                                                const newRules = displayDoctor.workConfig.groupingRules.filter(r => r.id !== rule.id);
+                                                                                const newRules = (scheduleDoctor.workConfig.groupingRules || []).filter(r => r.id !== rule.id);
                                                                                 if (loggedInProfessionalId) {
-                                                                                    updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, groupingRules: newRules } });
+                                                                                    updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, groupingRules: newRules } });
+                                                                                } else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                                                                    setLocalDoctor(prev => prev ? ({
+                                                                                        ...prev,
+                                                                                        professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                                                            ...p,
+                                                                                            workConfig: { ...p.workConfig, groupingRules: newRules }
+                                                                                        } : p)
+                                                                                    }) : null);
                                                                                 } else {
                                                                                     setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, groupingRules: newRules } }));
                                                                                 }
@@ -3679,7 +3875,7 @@
 
                                     <div className="flex flex-wrap gap-2">
                                         {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((day, i) => (
-                                            <button key={day} onClick={() => toggleDay(i)} className={`px-6 py-3 text-[10px] font-black border-2 transition-all ${displayDoctor.workConfig.daysOfWeek.includes(i) ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-200 text-slate-900 hover:border-slate-400'}`}>{day}</button>
+                                            <button key={day} onClick={() => toggleDay(i)} className={`px-6 py-3 text-[10px] font-black border-2 transition-all ${scheduleDoctor.workConfig?.daysOfWeek?.includes(i) ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-slate-200 text-slate-900 hover:border-slate-400'}`}>{day}</button>
                                         ))}
                                     </div>
 
@@ -3691,7 +3887,7 @@
                                         const today = new Date();
                                         const todayDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                                         const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-                                        const currentSpecificDates = displayDoctor?.workConfig?.specificDates || [];
+                                        const currentSpecificDates = scheduleDoctor?.workConfig?.specificDates || [];
 
                                         return (
                                             <div className="space-y-4 pt-6 border-t border-slate-200">
@@ -3701,7 +3897,7 @@
                                                             <i className="fas fa-calendar-alt text-red-600"></i> Calendário de Atendimento (Dias Específicos do Mês)
                                                         </label>
                                                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                                            Clique nos dias para definir as datas exatas do mês em que você estará atendendo.
+                                                            Clique nos dias para definir as datas exatas do mês em que {isCompanyView ? (scheduleDoctor?.name || 'a empresa') : 'você'} estará atendendo.
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-2 flex-wrap">
@@ -3788,7 +3984,7 @@
                                                             const isSelected = currentSpecificDates.includes(dateStr);
                                                             const isToday = dateStr === todayDateStr;
                                                             const dayOfWeekIndex = new Date(calYear, calMonth, dayNum).getDay();
-                                                            const isDayOfWeekActive = (displayDoctor?.workConfig?.daysOfWeek || []).includes(dayOfWeekIndex);
+                                                            const isDayOfWeekActive = (scheduleDoctor?.workConfig?.daysOfWeek || []).includes(dayOfWeekIndex);
 
                                                             return (
                                                                 <button
@@ -3873,18 +4069,34 @@
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Início do Expediente (Segunda a Sexta)</label><input type="time" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={displayDoctor?.workConfig.startTime} onChange={(e) => {
+                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Início do Expediente (Segunda a Sexta)</label><input type="time" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={scheduleDoctor?.workConfig?.startTime} onChange={(e) => {
                                         const val = e.target.value;
-                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, startTime: val } });
-                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, startTime: val } }));
+                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, startTime: val } });
+                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                            setLocalDoctor(prev => prev ? ({
+                                                ...prev,
+                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                    ...p,
+                                                    workConfig: { ...p.workConfig, startTime: val }
+                                                } : p)
+                                            }) : null);
+                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, startTime: val } }));
                                     }} /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Fim do Expediente (Segunda a Sexta)</label><input type="time" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={displayDoctor?.workConfig.endTime} onChange={(e) => {
+                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Fim do Expediente (Segunda a Sexta)</label><input type="time" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={scheduleDoctor?.workConfig?.endTime} onChange={(e) => {
                                         const val = e.target.value;
-                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, endTime: val } });
-                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, endTime: val } }));
+                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, endTime: val } });
+                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                            setLocalDoctor(prev => prev ? ({
+                                                ...prev,
+                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                    ...p,
+                                                    workConfig: { ...p.workConfig, endTime: val }
+                                                } : p)
+                                            }) : null);
+                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, endTime: val } }));
                                     }} /></div>
 
-                                    {displayDoctor?.workConfig.daysOfWeek.includes(6) && (
+                                    {scheduleDoctor?.workConfig?.daysOfWeek?.includes(6) && (
                                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 border border-slate-200">
                                             <div className="md:col-span-2 flex items-center justify-between">
                                                 <h4 className="text-xs font-black uppercase text-red-600 flex items-center gap-2">
@@ -3897,11 +4109,19 @@
                                                 <input 
                                                     type="time" 
                                                     className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none bg-white" 
-                                                    value={displayDoctor?.workConfig.saturdayStartTime || displayDoctor?.workConfig.startTime || "08:00"} 
+                                                    value={scheduleDoctor?.workConfig?.saturdayStartTime || scheduleDoctor?.workConfig?.startTime || "08:00"} 
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, saturdayStartTime: val } });
-                                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, saturdayStartTime: val } }));
+                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, saturdayStartTime: val } });
+                                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                                            setLocalDoctor(prev => prev ? ({
+                                                                ...prev,
+                                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                                    ...p,
+                                                                    workConfig: { ...p.workConfig, saturdayStartTime: val }
+                                                                } : p)
+                                                            }) : null);
+                                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, saturdayStartTime: val } }));
                                                     }} 
                                                 />
                                             </div>
@@ -3910,18 +4130,26 @@
                                                 <input 
                                                     type="time" 
                                                     className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none bg-white" 
-                                                    value={displayDoctor?.workConfig.saturdayEndTime || "12:00"} 
+                                                    value={scheduleDoctor?.workConfig?.saturdayEndTime || "12:00"} 
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, saturdayEndTime: val } });
-                                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, saturdayEndTime: val } }));
+                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, saturdayEndTime: val } });
+                                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                                            setLocalDoctor(prev => prev ? ({
+                                                                ...prev,
+                                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                                    ...p,
+                                                                    workConfig: { ...p.workConfig, saturdayEndTime: val }
+                                                                } : p)
+                                                            }) : null);
+                                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, saturdayEndTime: val } }));
                                                     }} 
                                                 />
                                             </div>
                                         </div>
                                     )}
 
-                                    {displayDoctor?.workConfig.daysOfWeek.includes(0) && (
+                                    {scheduleDoctor?.workConfig?.daysOfWeek?.includes(0) && (
                                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 border border-slate-200">
                                             <div className="md:col-span-2 flex items-center justify-between">
                                                 <h4 className="text-xs font-black uppercase text-red-600 flex items-center gap-2">
@@ -3934,11 +4162,19 @@
                                                 <input 
                                                     type="time" 
                                                     className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none bg-white" 
-                                                    value={displayDoctor?.workConfig.sundayStartTime || displayDoctor?.workConfig.startTime || "08:00"} 
+                                                    value={scheduleDoctor?.workConfig?.sundayStartTime || scheduleDoctor?.workConfig?.startTime || "08:00"} 
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, sundayStartTime: val } });
-                                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, sundayStartTime: val } }));
+                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, sundayStartTime: val } });
+                                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                                            setLocalDoctor(prev => prev ? ({
+                                                                ...prev,
+                                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                                    ...p,
+                                                                    workConfig: { ...p.workConfig, sundayStartTime: val }
+                                                                } : p)
+                                                            }) : null);
+                                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, sundayStartTime: val } }));
                                                     }} 
                                                 />
                                             </div>
@@ -3947,11 +4183,19 @@
                                                 <input 
                                                     type="time" 
                                                     className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none bg-white" 
-                                                    value={displayDoctor?.workConfig.sundayEndTime || "12:00"} 
+                                                    value={scheduleDoctor?.workConfig?.sundayEndTime || "12:00"} 
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, sundayEndTime: val } });
-                                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, sundayEndTime: val } }));
+                                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, sundayEndTime: val } });
+                                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                                            setLocalDoctor(prev => prev ? ({
+                                                                ...prev,
+                                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                                    ...p,
+                                                                    workConfig: { ...p.workConfig, sundayEndTime: val }
+                                                                } : p)
+                                                            }) : null);
+                                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, sundayEndTime: val } }));
                                                     }} 
                                                 />
                                             </div>
@@ -3960,41 +4204,74 @@
                                     
                                     <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 border border-slate-100">
                                         <div className="space-y-4">
-                                            <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase text-slate-900">Horário de Almoço</label><input type="checkbox" className="w-4 h-4 accent-red-600" checked={displayDoctor.workConfig.breaks?.lunch?.active || false} onChange={(e) => updateBreak('lunch', 'active', e.target.checked)} /></div>
+                                            <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase text-slate-900">Horário de Almoço</label><input type="checkbox" className="w-4 h-4 accent-red-600" checked={scheduleDoctor?.workConfig?.breaks?.lunch?.active || false} onChange={(e) => updateBreak('lunch', 'active', e.target.checked)} /></div>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <input type="time" disabled={!displayDoctor.workConfig.breaks?.lunch?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={displayDoctor.workConfig.breaks?.lunch?.start || "12:00"} onChange={(e) => updateBreak('lunch', 'start', e.target.value)} />
-                                                <input type="time" disabled={!displayDoctor.workConfig.breaks?.lunch?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={displayDoctor.workConfig.breaks?.lunch?.end || "13:30"} onChange={(e) => updateBreak('lunch', 'end', e.target.value)} />
+                                                <input type="time" disabled={!scheduleDoctor?.workConfig?.breaks?.lunch?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={scheduleDoctor?.workConfig?.breaks?.lunch?.start || "12:00"} onChange={(e) => updateBreak('lunch', 'start', e.target.value)} />
+                                                <input type="time" disabled={!scheduleDoctor?.workConfig?.breaks?.lunch?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={scheduleDoctor?.workConfig?.breaks?.lunch?.end || "13:30"} onChange={(e) => updateBreak('lunch', 'end', e.target.value)} />
                                             </div>
                                         </div>
                                         <div className="space-y-4">
-                                            <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase text-slate-900">Horário de Lanche</label><input type="checkbox" className="w-4 h-4 accent-red-600" checked={displayDoctor.workConfig.breaks?.snack?.active || false} onChange={(e) => updateBreak('snack', 'active', e.target.checked)} /></div>
+                                            <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase text-slate-900">Horário de Lanche</label><input type="checkbox" className="w-4 h-4 accent-red-600" checked={scheduleDoctor?.workConfig?.breaks?.snack?.active || false} onChange={(e) => updateBreak('snack', 'active', e.target.checked)} /></div>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <input type="time" disabled={!displayDoctor.workConfig.breaks?.snack?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={displayDoctor.workConfig.breaks?.snack?.start || "16:00"} onChange={(e) => updateBreak('snack', 'start', e.target.value)} />
-                                                <input type="time" disabled={!displayDoctor.workConfig.breaks?.snack?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={displayDoctor.workConfig.breaks?.snack?.end || "16:30"} onChange={(e) => updateBreak('snack', 'end', e.target.value)} />
+                                                <input type="time" disabled={!scheduleDoctor?.workConfig?.breaks?.snack?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={scheduleDoctor?.workConfig?.breaks?.snack?.start || "16:00"} onChange={(e) => updateBreak('snack', 'start', e.target.value)} />
+                                                <input type="time" disabled={!scheduleDoctor?.workConfig?.breaks?.snack?.active} className="p-3 border border-slate-200 text-[10px] font-black disabled:opacity-30" value={scheduleDoctor?.workConfig?.breaks?.snack?.end || "16:30"} onChange={(e) => updateBreak('snack', 'end', e.target.value)} />
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Duração da Consulta (minutos)</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={displayDoctor?.workConfig.slotDuration} onChange={(e) => {
+                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Duração da Consulta (minutos)</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={scheduleDoctor?.workConfig?.slotDuration} onChange={(e) => {
                                         const val = Number(e.target.value);
-                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, slotDuration: val } });
-                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, slotDuration: val } }));
+                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, slotDuration: val } });
+                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                            setLocalDoctor(prev => prev ? ({
+                                                ...prev,
+                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                    ...p,
+                                                    workConfig: { ...p.workConfig, slotDuration: val }
+                                                } : p)
+                                            }) : null);
+                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, slotDuration: val } }));
                                     }} /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Intervalo entre Consultas (minutos)</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={displayDoctor?.workConfig.minInterval} onChange={(e) => {
+                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Intervalo entre Consultas (minutos)</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={scheduleDoctor?.workConfig?.minInterval} onChange={(e) => {
                                         const val = Number(e.target.value);
-                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...displayDoctor.workConfig, minInterval: val } });
-                                        else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, minInterval: val } }));
+                                        if (loggedInProfessionalId) updateActiveProfessional({ workConfig: { ...scheduleDoctor.workConfig, minInterval: val } });
+                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                            setLocalDoctor(prev => prev ? ({
+                                                ...prev,
+                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                    ...p,
+                                                    workConfig: { ...p.workConfig, minInterval: val }
+                                                } : p)
+                                            }) : null);
+                                        } else setLocalDoctor(prev => ({ ...prev, workConfig: { ...prev.workConfig, minInterval: val } }));
                                     }} /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Pacientes por Horário</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={displayDoctor?.maxSlotsPerTime || 1} onChange={(e) => {
+                                    <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-widest text-slate-900">Pacientes por Horário</label><input type="number" className="w-full p-4 border border-slate-200 font-black uppercase text-xs focus:border-red-600 outline-none" value={scheduleDoctor?.maxSlotsPerTime || 1} onChange={(e) => {
                                         const val = Number(e.target.value);
                                         if (loggedInProfessionalId) updateActiveProfessional({ maxSlotsPerTime: val });
-                                        else setLocalDoctor(prev => ({ ...prev, maxSlotsPerTime: val }));
+                                        else if (isCompanyView && editingProfessionalId && editingProfessionalId !== 'company') {
+                                            setLocalDoctor(prev => prev ? ({
+                                                ...prev,
+                                                professionals: (prev.professionals || []).map(p => p.id === editingProfessionalId ? {
+                                                    ...p,
+                                                    maxSlotsPerTime: val
+                                                } : p)
+                                            }) : null);
+                                        } else setLocalDoctor(prev => ({ ...prev, maxSlotsPerTime: val }));
                                     }} /></div>
                                 </div>
 
                                 <div className="pt-10 border-t flex flex-col md:flex-row items-center justify-between gap-6">
-                                    <div className="text-left"><p className="text-[10px] font-black uppercase text-slate-900 mb-1">Atenção!</p><p className="text-[9px] font-medium text-slate-900 uppercase tracking-widest leading-relaxed">Ao regerar a agenda, todos os horários livres serão recalculados com base nas novas configurações.</p></div>
-                                    <button onClick={handleRegenerateSchedule} className="w-full md:w-auto px-12 py-5 bg-red-600 text-white font-black uppercase text-[11px] tracking-[0.2em] hover:bg-red-700 transition-all shadow-xl active-scale">REGERAR AGENDA AGORA</button>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-black uppercase text-slate-900 mb-1">
+                                            Atenção! {isCompanyView && `(Salvando para: ${scheduleDoctor?.name})`}
+                                        </p>
+                                        <p className="text-[9px] font-medium text-slate-900 uppercase tracking-widest leading-relaxed">
+                                            Ao regerar a agenda, todos os horários livres serão recalculados com base nas novas configurações definidas acima.
+                                        </p>
+                                    </div>
+                                    <button onClick={handleRegenerateSchedule} className="w-full md:w-auto px-12 py-5 bg-red-600 text-white font-black uppercase text-[11px] tracking-[0.2em] hover:bg-red-700 transition-all shadow-xl active-scale">
+                                        REGERAR AGENDA AGORA
+                                    </button>
                                 </div>
                             </div>
                         )}
