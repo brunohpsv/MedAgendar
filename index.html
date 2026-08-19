@@ -2553,6 +2553,291 @@
                 }
             };
 
+            const AgendaCompactCalendar = ({ appointments = [], isCompanyView = false, professionals = [] }) => {
+                const [calDate, setCalDate] = useState(() => new Date());
+                const [selectedDayStr, setSelectedDayStr] = useState(null);
+
+                const year = calDate.getFullYear();
+                const month = calDate.getMonth();
+
+                const monthNames = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                ];
+
+                const prevMonth = () => {
+                    setCalDate(new Date(year, month - 1, 1));
+                };
+
+                const nextMonth = () => {
+                    setCalDate(new Date(year, month + 1, 1));
+                };
+
+                const goToToday = () => {
+                    setCalDate(new Date());
+                };
+
+                const firstDayIndex = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+                const appointmentsByDate = useMemo(() => {
+                    const map = {};
+                    (appointments || []).forEach(app => {
+                        if (!app || !app.date) return;
+                        if (app.status === 'cancelled' || app.status === 'rescheduled' || app.rescheduledToId) return;
+                        if (!map[app.date]) {
+                            map[app.date] = [];
+                        }
+                        map[app.date].push(app);
+                    });
+                    Object.keys(map).forEach(d => {
+                        map[d].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                    });
+                    return map;
+                }, [appointments]);
+
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+                const totalMonthAppointments = Object.entries(appointmentsByDate)
+                    .filter(([d]) => d.startsWith(monthPrefix))
+                    .reduce((acc, [, list]) => acc + list.length, 0);
+
+                const weekDays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+                const selectedDayAppointments = selectedDayStr ? (appointmentsByDate[selectedDayStr] || []) : [];
+
+                return (
+                    <div className="w-full bg-white border-2 border-slate-200 shadow-sm overflow-hidden transition-all">
+                        {/* Header Bar */}
+                        <div className="bg-slate-900 text-white px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 bg-red-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                                    <i className="fas fa-calendar-alt text-xs"></i>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-white">
+                                        {monthNames[month]} de {year}
+                                    </h4>
+                                    <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] sm:text-[9px] font-black uppercase tracking-wider rounded-xs">
+                                        {totalMonthAppointments} {totalMonthAppointments === 1 ? 'CONSULTA' : 'CONSULTAS'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={goToToday}
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-slate-700 transition-colors"
+                                    title="Ir para o mês atual"
+                                >
+                                    Hoje
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={prevMonth}
+                                    className="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-white text-xs border border-slate-700 transition-colors active-scale"
+                                    title="Mês Anterior"
+                                >
+                                    <i className="fas fa-chevron-left text-[10px]"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={nextMonth}
+                                    className="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-red-600 text-white text-xs border border-slate-700 transition-colors active-scale"
+                                    title="Próximo Mês"
+                                >
+                                    <i className="fas fa-chevron-right text-[10px]"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Weekday Row */}
+                        <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200 text-center">
+                            {weekDays.map((d, idx) => (
+                                <div 
+                                    key={d} 
+                                    className={`py-1 text-[8px] sm:text-[9px] font-black uppercase tracking-wider ${
+                                        idx === 0 || idx === 6 ? 'text-slate-400 bg-slate-100/70' : 'text-slate-700'
+                                    }`}
+                                >
+                                    {d}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Month Grid */}
+                        <div className="grid grid-cols-7 divide-x divide-y divide-slate-200 border-b border-slate-200 bg-slate-50">
+                            {/* Prev Month Days */}
+                            {Array.from({ length: firstDayIndex }).map((_, i) => {
+                                const dayNum = daysInPrevMonth - firstDayIndex + 1 + i;
+                                return (
+                                    <div 
+                                        key={`prev-${i}`} 
+                                        className="min-h-[48px] sm:min-h-[58px] p-1 bg-slate-100/40 text-slate-300 opacity-40 select-none"
+                                    >
+                                        <span className="text-[9px] font-bold">{dayNum}</span>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Current Month Days */}
+                            {Array.from({ length: daysInMonth }).map((_, i) => {
+                                const dayNum = i + 1;
+                                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                                const dayApps = appointmentsByDate[dateStr] || [];
+                                const hasApps = dayApps.length > 0;
+                                const isToday = dateStr === todayStr;
+                                const isSelected = dateStr === selectedDayStr;
+
+                                return (
+                                    <div
+                                        key={dateStr}
+                                        onClick={() => {
+                                            if (hasApps || isSelected) {
+                                                setSelectedDayStr(isSelected ? null : dateStr);
+                                            }
+                                        }}
+                                        className={`min-h-[48px] sm:min-h-[58px] p-1 sm:p-1.5 transition-all flex flex-col justify-between ${
+                                            hasApps ? 'cursor-pointer hover:bg-red-50/60' : 'cursor-default'
+                                        } ${
+                                            isSelected 
+                                                ? 'bg-red-50 ring-2 ring-inset ring-red-600' 
+                                                : (hasApps ? 'bg-white' : 'bg-slate-50/60')
+                                        } ${
+                                            isToday ? 'border-t-2 border-t-red-600' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-1 leading-none">
+                                            <span className={`text-[9px] sm:text-[11px] font-black ${
+                                                isToday 
+                                                    ? 'w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center bg-red-600 text-white rounded-full text-[8px] sm:text-[10px]' 
+                                                    : (hasApps ? 'text-slate-900' : 'text-slate-400')
+                                            }`}>
+                                                {dayNum}
+                                            </span>
+                                            {hasApps && (
+                                                <span className="px-1 py-0.2 bg-red-100 text-red-700 text-[7px] sm:text-[8px] font-black uppercase rounded-xs">
+                                                    {dayApps.length}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Scheduled Times */}
+                                        {hasApps ? (
+                                            <div className="mt-1 flex flex-wrap gap-0.5 max-h-[34px] sm:max-h-[44px] overflow-hidden">
+                                                {dayApps.slice(0, 3).map((app, idx) => {
+                                                    const prof = isCompanyView ? (professionals || []).find(p => p.id === app.professionalId) : null;
+                                                    return (
+                                                        <span 
+                                                            key={app.id || idx}
+                                                            className={`text-[7px] sm:text-[8px] font-black px-1 py-0.5 rounded-xs leading-none flex items-center gap-0.5 ${
+                                                                app.status === 'completed'
+                                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                                                    : 'bg-slate-900 text-white'
+                                                            }`}
+                                                            title={`${app.time} - ${app.patientName}${prof ? ` (${prof.name})` : ''}`}
+                                                        >
+                                                            <i className="fas fa-clock text-[6px] opacity-75"></i>
+                                                            <span>{app.time}</span>
+                                                        </span>
+                                                    );
+                                                })}
+                                                {dayApps.length > 3 && (
+                                                    <span className="text-[7px] font-black px-0.5 py-0.5 text-slate-500 bg-slate-200 rounded-xs leading-none">
+                                                        +{dayApps.length - 3}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="mt-auto"></div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {/* Next Month Trailing Days */}
+                            {(() => {
+                                const totalCells = firstDayIndex + daysInMonth;
+                                const remainder = totalCells % 7;
+                                const trailingCount = remainder === 0 ? 0 : 7 - remainder;
+                                return Array.from({ length: trailingCount }).map((_, i) => (
+                                    <div 
+                                        key={`next-${i}`} 
+                                        className="min-h-[48px] sm:min-h-[58px] p-1 bg-slate-100/40 text-slate-300 opacity-40 select-none"
+                                    >
+                                        <span className="text-[9px] font-bold">{i + 1}</span>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+
+                        {/* Selected Day Details Drawer */}
+                        {selectedDayStr && selectedDayAppointments.length > 0 && (
+                            <div className="bg-slate-900 text-white p-3 sm:p-4 border-t-2 border-red-600 animate-slide-up">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[8px] sm:text-[9px] font-black text-red-500 uppercase tracking-widest">
+                                            Horários Agendados:
+                                        </span>
+                                        <span className="text-xs font-black uppercase text-white">
+                                            {formatDateLong(selectedDayStr)}
+                                        </span>
+                                        <span className="px-1.5 py-0.2 bg-red-600 text-white text-[8px] sm:text-[9px] font-black uppercase rounded-xs">
+                                            {selectedDayAppointments.length} {selectedDayAppointments.length === 1 ? 'consulta' : 'consultas'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDayStr(null)}
+                                        className="text-slate-400 hover:text-white text-[10px] font-black uppercase flex items-center gap-1"
+                                    >
+                                        <i className="fas fa-times"></i> Fechar
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {selectedDayAppointments.map(app => {
+                                        const prof = isCompanyView ? (professionals || []).find(p => p.id === app.professionalId) : null;
+                                        return (
+                                            <div key={app.id} className="bg-slate-800 p-2.5 border border-slate-700 rounded-xs flex items-center justify-between gap-2">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="px-1.5 py-0.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px]">
+                                                            {app.time}
+                                                        </span>
+                                                        <p className="text-[11px] sm:text-xs font-black uppercase text-white truncate">
+                                                            {app.patientName}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1 text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase">
+                                                        <span>Tel: {app.patientPhone || 'N/A'}</span>
+                                                        {prof && (
+                                                            <span className="text-red-400 font-black truncate">
+                                                                • {prof.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <span className={`text-[7px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded-xs shrink-0 ${
+                                                    app.status === 'completed'
+                                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                        : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                                }`}>
+                                                    {app.status === 'completed' ? 'Concluída' : 'Confirmada'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
             const renderAppointmentCards = (appsList) => {
                 const visibleApps = (appsList || []).filter(a => a && !a.rescheduledToId && a.status !== 'rescheduled');
                 const activeApps = visibleApps.filter(a => a.status !== 'cancelled');
@@ -2720,6 +3005,15 @@
                             <p className="py-8 text-center text-xs font-black text-slate-900 uppercase italic bg-slate-50 border border-dashed border-slate-200">Nenhum agendamento ativo.</p>
                         )}
                         
+                        {/* Compact Calendar Overview */}
+                        <div className="pt-2">
+                            <AgendaCompactCalendar 
+                                appointments={activeApps}
+                                isCompanyView={isCompanyView}
+                                professionals={localDoctor?.professionals || []}
+                            />
+                        </div>
+
                         {cancelledApps.length > 0 && (
                             <div className="space-y-4 pt-4 border-t-2 border-slate-300">
                                 <div className="flex items-center gap-4">
@@ -3327,11 +3621,7 @@
                                             <i className="fas fa-calendar-plus text-sm"></i> AGENDAR PACIENTE
                                         </button>
                                     </div>
-                                    {doctorAppointments.length === 0 ? (
-                                        <p className="py-20 text-center text-[10px] font-black text-slate-900 uppercase italic">Nenhum agendamento encontrado.</p>
-                                    ) : (
-                                        renderAppointmentCards(doctorAppointments)
-                                    )}
+                                    {renderAppointmentCards(doctorAppointments)}
                                 </div>
                             )
                         )}
