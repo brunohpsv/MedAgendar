@@ -11,22 +11,24 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <!-- Versioning / Cache Busting -->
+    <!-- Global Error Logging -->
     <script>
-        const APP_VERSION = '1.1.1';
-        
-        // Automatic Cache Busting: Force reload if version changes
-        (function() {
-            const savedVersion = localStorage.getItem('medagendar_app_version');
-            if (savedVersion && savedVersion !== APP_VERSION) {
-                console.log('Nova versão detectada: ' + APP_VERSION + '. Limpando cache e recarregando...');
-                localStorage.setItem('medagendar_app_version', APP_VERSION);
-                // Force a reload without using the cache
-                window.location.reload(true);
-            } else {
-                localStorage.setItem('medagendar_app_version', APP_VERSION);
-            }
-        })();
+        window.addEventListener('error', function(e) {
+            console.error('Captured window error:', e.message, e.filename, e.lineno, e.error);
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Captured unhandled promise rejection:', e.reason);
+        });
+    </script>
+
+    <!-- Versioning / Cache Management -->
+    <script>
+        const APP_VERSION = '1.1.2';
+        try {
+            localStorage.setItem('medagendar_app_version', APP_VERSION);
+        } catch (e) {
+            console.warn('Storage unavailable:', e);
+        }
     </script>
     
     <!-- Tailwind CSS -->
@@ -39,9 +41,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=6.4.0">
     
     <!-- React & Babel -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js?v=18"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js?v=18"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js?v=7"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js?v=18"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js?v=18"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js?v=7"></script>
 
     <!-- Firebase SDK (Modular) -->
     <script type="importmap">
@@ -1660,6 +1662,9 @@
             const [rescheduleNotes, setRescheduleNotes] = useState('');
             const [rescheduleAttachments, setRescheduleAttachments] = useState([]);
             const [isBookingPatient, setIsBookingPatient] = useState(false);
+            const [selectedProfFilter, setSelectedProfFilter] = useState('all');
+            const [cancelledAgendaPage, setCancelledAgendaPage] = useState(1);
+            const [notifPage, setNotifPage] = useState(1);
 
             const loggedInDoctor = doctors.find(d => d.id === loggedInId);
 
@@ -1969,9 +1974,16 @@
                 }
             }, [loggedInDoctor, loggedInProfessionalId]);
 
+            useEffect(() => {
+                setCancelledAgendaPage(1);
+            }, [selectedProfFilter]);
+
             const doctorAppointments = appointments.filter(a => 
                 a.doctorId === loggedInId && 
-                (!loggedInProfessionalId || a.professionalId === loggedInProfessionalId) &&
+                (!loggedInProfessionalId 
+                    ? (selectedProfFilter === 'all' || a.professionalId === selectedProfFilter)
+                    : a.professionalId === loggedInProfessionalId
+                ) &&
                 !a.rescheduledToId && a.status !== 'rescheduled'
             );
 
@@ -2558,37 +2570,37 @@
                         .sort((a, b) => a[0].localeCompare(b[0]))
                         .map(([slotKey, apps]) => (
                             <div key={slotKey} className="border border-slate-200 bg-white overflow-hidden shadow-sm hover:border-red-600 transition-all">
-                                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex justify-between items-center">
-                                    <h4 className="text-slate-900 font-black text-[11px] uppercase tracking-wider">
+                                <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 sm:px-4 sm:py-2 flex justify-between items-center">
+                                    <h4 className="text-slate-900 font-black text-[10px] sm:text-[11px] uppercase tracking-wider">
                                         <i className="fas fa-clock mr-1.5 text-red-600"></i> {slotKey}
                                     </h4>
-                                    <span className="text-[10px] font-black text-slate-700 uppercase bg-white px-2 py-0.5 border border-slate-200">{apps.length} PACIENTE(S)</span>
+                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-700 uppercase bg-white px-2 py-0.5 border border-slate-200">{apps.length} PACIENTE(S)</span>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {apps.map(app => (
-                                        <div key={app.id} className={`px-4 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-all ${app.status === 'cancelled' ? 'opacity-60 bg-slate-50' : (app.status === 'completed' ? 'bg-emerald-50/25 border-l-4 border-emerald-600' : 'bg-white hover:bg-slate-50/40')}`}>
-                                            <div className="flex gap-3 items-center w-full md:w-auto flex-1 min-w-0">
-                                                <div className={`px-2.5 py-1.5 flex flex-col items-center justify-center font-black shrink-0 min-w-[56px] ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : (app.status === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-red-600 text-white shadow-sm')}`}>
-                                                    <span className="text-[14px] leading-tight">{app.time}</span>
+                                        <div key={app.id} className={`p-3 sm:px-4 sm:py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-2.5 sm:gap-3 transition-all ${app.status === 'cancelled' ? 'opacity-60 bg-slate-50' : (app.status === 'completed' ? 'bg-emerald-50/25 border-l-4 border-emerald-600' : 'bg-white hover:bg-slate-50/40')}`}>
+                                            <div className="flex gap-2.5 sm:gap-3 items-center w-full md:w-auto flex-1 min-w-0">
+                                                <div className={`px-2 py-1 sm:px-2.5 sm:py-1.5 flex flex-col items-center justify-center font-black shrink-0 min-w-[48px] sm:min-w-[56px] ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : (app.status === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-red-600 text-white shadow-sm')}`}>
+                                                    <span className="text-xs sm:text-[14px] leading-tight">{app.time}</span>
                                                     {app.duration && app.isExtendedTime && (
                                                         <span className="text-[7px] font-black uppercase tracking-tighter opacity-90">{app.duration}M</span>
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className="font-black uppercase text-slate-900 text-sm leading-tight">{app.patientName}</p>
+                                                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                        <p className="font-black uppercase text-slate-900 text-xs sm:text-sm leading-tight">{app.patientName}</p>
                                                         {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
-                                                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
+                                                            <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
                                                                 <i className="fas fa-history"></i> Reagendamento
                                                             </span>
                                                         )}
                                                         {app.status === 'completed' && (
-                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase rounded border border-emerald-300 flex items-center gap-1">
+                                                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase rounded border border-emerald-300 flex items-center gap-1">
                                                                 <i className="fas fa-check-circle text-emerald-600"></i> CONCLUÍDA
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-[10px] font-bold text-slate-700 uppercase">
+                                                    <div className="flex flex-wrap items-center gap-x-2.5 sm:gap-x-3 gap-y-0.5 mt-0.5 text-[9px] sm:text-[10px] font-bold text-slate-700 uppercase">
                                                         <span>CPF: <strong className="text-slate-900">{app.patientCPF}</strong></span>
                                                         <span>•</span>
                                                         <span>Tel: <strong className="text-slate-900">{app.patientPhone}</strong></span>
@@ -2604,38 +2616,38 @@
                                                     </div>
                                                     
                                                     {((app.isRescheduled || app.rescheduledFromId || app.rescheduled) && app.rescheduledFromDate) && (
-                                                        <p className="text-[9px] font-black text-amber-700 uppercase mt-0.5 flex items-center gap-1">
+                                                        <p className="text-[8px] sm:text-[9px] font-black text-amber-700 uppercase mt-0.5 flex items-center gap-1">
                                                             <i className="fas fa-sync-alt text-amber-600"></i>
                                                             Anterior: {formatDateLong(app.rescheduledFromDate)} às {app.rescheduledFromTime || ''}
                                                         </p>
                                                     )}
                                                     {app.document && (
-                                                        <p className="text-[9px] font-bold text-emerald-700 uppercase mt-0.5 flex items-center gap-1">
+                                                        <p className="text-[8px] sm:text-[9px] font-bold text-emerald-700 uppercase mt-0.5 flex items-center gap-1">
                                                             <i className="fas fa-file-alt text-emerald-600"></i>
                                                             Doc: <a href={app.document.data} download={app.document.name} target="_blank" rel="noopener noreferrer" className="underline font-black hover:text-emerald-900">{app.document.name}</a>
                                                         </p>
                                                     )}
                                                     {app.notes && (
-                                                        <p className="text-[9px] font-bold text-slate-600 uppercase mt-0.5 flex items-center gap-1">
+                                                        <p className="text-[8px] sm:text-[9px] font-bold text-slate-600 uppercase mt-0.5 flex items-center gap-1">
                                                             <i className="fas fa-sticky-note text-amber-500"></i>
                                                             Notas: {app.notes}
                                                         </p>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap shrink-0">
+                                            <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-start sm:justify-end flex-wrap shrink-0 mt-1 md:mt-0">
                                                 {app.status === 'cancelled' ? (
                                                     <button 
                                                         onClick={() => handleStartReschedule(app)} 
-                                                        className="px-3.5 py-1.5 bg-red-600 text-white text-[10px] font-black uppercase hover:bg-red-700 transition-colors active-scale flex items-center gap-1.5 shadow-sm"
+                                                        className="px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 bg-red-600 text-white text-[9px] sm:text-[10px] font-black uppercase hover:bg-red-700 transition-colors active-scale flex items-center gap-1.5 shadow-sm"
                                                     >
                                                         <i className="fas fa-calendar-alt"></i> REAGENDAR
                                                     </button>
                                                 ) : app.status === 'completed' ? (
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1.5 sm:gap-2">
                                                         <button 
                                                             onClick={() => handleStartReschedule(app)} 
-                                                            className="px-3.5 py-1.5 bg-red-600 text-white text-[10px] font-black uppercase hover:bg-red-700 transition-all active-scale flex items-center gap-1.5 shadow-sm"
+                                                            className="px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 bg-red-600 text-white text-[9px] sm:text-[10px] font-black uppercase hover:bg-red-700 transition-all active-scale flex items-center gap-1.5 shadow-sm"
                                                         >
                                                             <i className="fas fa-calendar-alt"></i> REAGENDAR
                                                         </button>
@@ -2647,7 +2659,7 @@
                                                                 await onUpdateAppointment(app.id, { status: 'completed' });
                                                                 showNotification('Consulta marcada como CONCLUÍDA!');
                                                             }}
-                                                            className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-1 shadow-sm active-scale"
+                                                            className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-emerald-600 text-white text-[9px] sm:text-[10px] font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-1 shadow-sm active-scale"
                                                             title="Marcar consulta como concluída"
                                                         >
                                                             <i className="fas fa-check"></i> CONCLUÍDO
@@ -2676,12 +2688,12 @@
                                                             />
                                                             <label 
                                                                 htmlFor={`file-${app.id}`} 
-                                                                className="px-3 py-1.5 bg-slate-100 text-slate-900 text-[10px] font-black uppercase cursor-pointer hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 border border-slate-200"
+                                                                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-100 text-slate-900 text-[9px] sm:text-[10px] font-black uppercase cursor-pointer hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 border border-slate-200"
                                                             >
                                                                 <i className="fas fa-paperclip"></i> {app.document ? 'ALTERAR DOC' : 'ANEXAR DOC'}
                                                             </label>
                                                         </div>
-                                                        <button onClick={() => onCancelAppointment(app.id)} className="px-3.5 py-1.5 border border-red-600 text-red-600 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-colors active-scale">
+                                                        <button onClick={() => onCancelAppointment(app.id)} className="px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 border border-red-600 text-red-600 text-[9px] sm:text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-colors active-scale">
                                                             CANCELAR
                                                         </button>
                                                     </>
@@ -2693,6 +2705,10 @@
                             </div>
                         ));
                 };
+
+                const totalCancelledPages = Math.ceil(cancelledApps.length / 20) || 1;
+                const safeCancelledPage = Math.min(cancelledAgendaPage, totalCancelledPages);
+                const paginatedCancelledApps = cancelledApps.slice((safeCancelledPage - 1) * 20, safeCancelledPage * 20);
 
                 return (
                     <div className="space-y-6">
@@ -2715,8 +2731,46 @@
                                     <div className="h-0.5 bg-slate-300 flex-grow"></div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-3 opacity-75">
-                                    {renderGrouped(cancelledApps)}
+                                    {renderGrouped(paginatedCancelledApps)}
                                 </div>
+                                {totalCancelledPages > 1 && (
+                                    <div className="flex items-center justify-between pt-3 border-t border-slate-200 bg-slate-50 px-4 py-2.5 shadow-sm">
+                                        <span className="text-[11px] font-black uppercase text-slate-600">
+                                            Página {safeCancelledPage} de {totalCancelledPages} ({cancelledApps.length} cancelados)
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCancelledAgendaPage(p => Math.max(1, p - 1))}
+                                                disabled={safeCancelledPage === 1}
+                                                className={`w-8 h-8 flex items-center justify-center border font-black text-xs transition-all ${
+                                                    safeCancelledPage === 1 
+                                                        ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-white' 
+                                                        : 'border-slate-300 text-slate-800 hover:bg-red-600 hover:text-white hover:border-red-600 bg-white shadow-sm'
+                                                }`}
+                                                title="Página Anterior"
+                                            >
+                                                <i className="fas fa-chevron-left"></i>
+                                            </button>
+                                            <span className="px-3 py-1 bg-white border border-slate-300 text-xs font-black text-slate-900 shadow-sm">
+                                                {safeCancelledPage} / {totalCancelledPages}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCancelledAgendaPage(p => Math.min(totalCancelledPages, p + 1))}
+                                                disabled={safeCancelledPage === totalCancelledPages}
+                                                className={`w-8 h-8 flex items-center justify-center border font-black text-xs transition-all ${
+                                                    safeCancelledPage === totalCancelledPages 
+                                                        ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-white' 
+                                                        : 'border-slate-300 text-slate-800 hover:bg-red-600 hover:text-white hover:border-red-600 bg-white shadow-sm'
+                                                }`}
+                                                title="Próxima Página"
+                                            >
+                                                <i className="fas fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -3107,10 +3161,10 @@
                             </div>
                         </div>
                     )}
-                    <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 lg:p-3 text-slate-900 border border-slate-200 border-b-4 border-red-600 shadow-xl mb-8 lg:mb-3">
-                        <div className="flex flex-col sm:flex-row items-center gap-6 lg:gap-3 text-center sm:text-left">
+                    <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 sm:p-6 lg:p-4 text-slate-900 border border-slate-200 border-b-4 border-red-600 shadow-xl mb-4 lg:mb-3 gap-4">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 lg:gap-3 text-center sm:text-left">
                             <div className="relative group shrink-0">
-                                <div className="w-20 h-20 lg:w-14 lg:h-14 border-2 border-slate-200 overflow-hidden bg-slate-100">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-14 lg:h-14 border-2 border-slate-200 overflow-hidden bg-slate-100 shadow-sm">
                                     {displayDoctor?.image ? (
                                         <img src={displayDoctor.image} className="w-full h-full object-cover" alt={displayDoctor.name} referrerPolicy="no-referrer" />
                                     ) : (
@@ -3138,7 +3192,7 @@
                                 </div>
                             </div>
                             <div>
-                                <h2 className="text-xl lg:text-lg font-black uppercase tracking-tighter">
+                                <h2 className="text-lg sm:text-xl lg:text-lg font-black uppercase tracking-tight">
                                     {loggedInProfessionalId ? (activeProfessional?.name || 'Carregando...') : (displayDoctor?.name || 'Carregando...')}
                                 </h2>
                                 <p className="text-xs font-bold text-red-500 uppercase">
@@ -3146,31 +3200,31 @@
                                 </p>
                             </div>
                         </div>
-                        <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 mt-8 md:mt-0">
+                        <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
                             {unreadCancelledApps.length > 0 && activeTab !== 'notifications' && (
                                 <button 
                                     onClick={() => {
                                         setActiveTab('notifications');
                                         markNotificationsAsViewed();
                                     }}
-                                    className="px-4 py-3 bg-red-100 border border-red-300 text-red-700 text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+                                    className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-red-100 border border-red-300 text-red-700 text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
                                     title="Ver Notificações de Cancelamento"
                                 >
                                     <i className="fas fa-bell text-red-600"></i> NOTIFICAÇÕES
-                                    <span className="bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full animate-pulse">{unreadCancelledApps.length}</span>
+                                    <span className="bg-red-600 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">{unreadCancelledApps.length}</span>
                                 </button>
                             )}
 
-                            <button onClick={() => window.location.hash = '#home'} className="px-6 py-3 border border-slate-200 text-xs font-black uppercase tracking-widest hover:bg-slate-50">VER SITE</button>
-                            <button onClick={onLogout} className="px-6 py-3 bg-red-600 text-white text-xs font-black uppercase tracking-widest hover:bg-red-700">SAIR</button>
+                            <button onClick={() => window.location.hash = '#home'} className="px-4 py-2 sm:px-6 sm:py-2.5 border border-slate-200 text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-slate-50">VER SITE</button>
+                            <button onClick={onLogout} className="px-4 py-2 sm:px-6 sm:py-2.5 bg-red-600 text-white text-[10px] sm:text-xs font-black uppercase tracking-wider hover:bg-red-700">SAIR</button>
                         </div>
                     </div>
-                    <div className="flex border-b border-slate-200 mb-8 lg:mb-3 overflow-x-auto scrollbar-hide">
+                    <div className="flex border-b border-slate-200 mb-4 lg:mb-3 overflow-x-auto scrollbar-hide">
                         {tabs.map(tab => (
-                            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-8 py-4 lg:px-5 lg:py-2 text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all border-b-2 whitespace-nowrap ${activeTab === tab.id ? "border-red-600 text-red-600 bg-white" : "border-transparent text-slate-900 hover:text-slate-900"}`}><i className={`fas ${tab.icon}`}></i> {tab.label}</button>
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-3 sm:px-6 sm:py-3 lg:px-4 lg:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-2 sm:gap-2.5 transition-all border-b-2 whitespace-nowrap ${activeTab === tab.id ? "border-red-600 text-red-600 bg-white" : "border-transparent text-slate-900 hover:text-slate-900"}`}><i className={`fas ${tab.icon}`}></i> {tab.label}</button>
                         ))}
                     </div>
-                    <div className="bg-white border border-slate-200 p-6 md:p-10 lg:p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200 p-4 sm:p-6 md:p-8 lg:p-4 shadow-sm">
                         {activeTab === 'professionals' && isCompanyView && (
                             <div className="space-y-10">
                                 <div className="bg-slate-50 p-8 border border-slate-200">
@@ -3238,16 +3292,37 @@
                                             showNotification("Agendamento de paciente realizado com sucesso!");
                                         }}
                                         onBack={() => setIsBookingPatient(false)}
-                                        initialProfessionalId={loggedInProfessionalId || undefined}
+                                        initialProfessionalId={loggedInProfessionalId || (selectedProfFilter !== 'all' ? selectedProfFilter : undefined)}
                                     />
                                 </div>
                             ) : (
                                 <div className="space-y-8">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-                                        <h3 className="text-lg font-black uppercase tracking-tighter">Próximos Agendamentos</h3>
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
+                                            <h3 className="text-lg font-black uppercase tracking-tighter">Próximos Agendamentos</h3>
+                                            {loggedInDoctor?.isClinic && !loggedInProfessionalId && (
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider whitespace-nowrap flex items-center gap-1">
+                                                        <i className="fas fa-user-md text-red-600"></i> Filtrar:
+                                                    </label>
+                                                    <select 
+                                                        value={selectedProfFilter} 
+                                                        onChange={(e) => setSelectedProfFilter(e.target.value)}
+                                                        className="p-2 sm:py-1.5 sm:px-3 bg-white border border-slate-300 text-slate-900 font-bold text-xs uppercase outline-none focus:border-red-600 shadow-sm cursor-pointer min-w-[200px]"
+                                                    >
+                                                        <option value="all">TODOS OS PROFISSIONAIS ({(localDoctor?.professionals || []).length})</option>
+                                                        {(localDoctor?.professionals || []).map(prof => (
+                                                            <option key={prof.id} value={prof.id}>
+                                                                {prof.name} {prof.specialties && prof.specialties.length > 0 ? `(${prof.specialties.join(', ')})` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                         <button 
                                             onClick={() => setIsBookingPatient(true)}
-                                            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-md active-scale transition-all rounded-sm"
+                                            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-md active-scale transition-all rounded-sm shrink-0"
                                         >
                                             <i className="fas fa-calendar-plus text-sm"></i> AGENDAR PACIENTE
                                         </button>
@@ -3282,65 +3357,106 @@
                                         <p>Nenhuma notificação de cancelamento no momento.</p>
                                         <p className="text-[10px] text-slate-400 font-bold">Todas as suas consultas agendadas estão ativas!</p>
                                     </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {cancelledApps.map(app => {
-                                            const cleanPhone = app.patientPhone ? app.patientPhone.replace(/\D/g, '') : '';
-                                            return (
-                                                <div key={`notif-cancel-${app.id}`} className="bg-white border-2 border-red-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm hover:border-red-600 transition-colors">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-black text-xl shrink-0">
-                                                            <i className="fas fa-calendar-times"></i>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="px-2.5 py-0.5 bg-red-600 text-white font-black text-[9px] uppercase tracking-widest rounded">
-                                                                    CANCELADO PELO PACIENTE
-                                                                </span>
-                                                                <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                                                    ID: #{app.id}
-                                                                </span>
+                                ) : (() => {
+                                    const totalNotifPages = Math.ceil(cancelledApps.length / 20) || 1;
+                                    const safeNotifPage = Math.min(notifPage, totalNotifPages);
+                                    const paginatedNotifApps = cancelledApps.slice((safeNotifPage - 1) * 20, safeNotifPage * 20);
+
+                                    return (
+                                        <div className="space-y-3">
+                                            {paginatedNotifApps.map(app => {
+                                                const cleanPhone = app.patientPhone ? app.patientPhone.replace(/\D/g, '') : '';
+                                                return (
+                                                    <div key={`notif-cancel-${app.id}`} className="bg-white border border-red-200 p-3.5 sm:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm hover:border-red-600 transition-colors">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-black text-base sm:text-lg shrink-0 mt-0.5">
+                                                                <i className="fas fa-calendar-times"></i>
                                                             </div>
-                                                            <h4 className="font-black uppercase text-sm text-slate-900">
-                                                                Paciente: {app.patientName}
-                                                            </h4>
-                                                            <p className="text-xs font-bold text-slate-700 uppercase">
-                                                                <i className="far fa-clock mr-1 text-red-600"></i>
-                                                                Horário: <strong>{app.date} às {app.time}</strong>
-                                                            </p>
-                                                            <p className="text-[10px] font-bold text-slate-500 uppercase">
-                                                                CPF: {app.patientCPF || 'N/A'} • Tel: {app.patientPhone || 'Não informado'} • Valor: R$ {app.price || '0'}
-                                                            </p>
+                                                            <div className="space-y-0.5 min-w-0 flex-1">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="px-1.5 py-0.5 bg-red-600 text-white font-black text-[8px] sm:text-[9px] uppercase tracking-wider rounded">
+                                                                        CANCELADO PELO PACIENTE
+                                                                    </span>
+                                                                    <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                                                        ID: #{app.id}
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="font-black uppercase text-xs sm:text-sm text-slate-900 truncate">
+                                                                    Paciente: {app.patientName}
+                                                                </h4>
+                                                                <p className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase">
+                                                                    <i className="far fa-clock mr-1 text-red-600"></i>
+                                                                    Horário: <strong>{formatDateLong(app.date)} às {app.time}</strong>
+                                                                </p>
+                                                                <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase">
+                                                                    CPF: {app.patientCPF || 'N/A'} • Tel: {app.patientPhone || 'Não informado'} • Valor: R$ {app.price || '0'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end mt-1 md:mt-0">
+                                                            <button 
+                                                                onClick={() => handleStartReschedule(app)}
+                                                                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-red-600 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-700 transition-all flex items-center gap-1.5 shadow-sm active-scale"
+                                                            >
+                                                                <i className="fas fa-calendar-alt text-xs"></i> REAGENDAR
+                                                            </button>
+                                                            {cleanPhone && (
+                                                                <a 
+                                                                    href={`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá ${app.patientName}, vi que sua consulta no dia ${formatDateLong(app.date)} às ${app.time} no MedAgendar foi cancelada. Gostaria de remarcar?`)}`}
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-1.5 shadow-sm active-scale"
+                                                                >
+                                                                    <i className="fab fa-whatsapp text-xs"></i> WHATSAPP
+                                                                </a>
+                                                            )}
                                                         </div>
                                                     </div>
+                                                );
+                                            })}
 
-                                                    <div className="flex flex-wrap items-center gap-3 shrink-0 self-end md:self-center">
-                                                        <button 
-                                                            onClick={() => {
-                                                                setReschedulingApp(app);
-                                                                setNewRescheduleDate(app.date || '');
-                                                                setNewRescheduleTime(app.time || '08:00');
-                                                            }}
-                                                            className="px-4 py-2.5 bg-red-600 text-white font-black uppercase text-[10px] tracking-wider hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm"
+                                            {totalNotifPages > 1 && (
+                                                <div className="flex items-center justify-between pt-4 border-t border-slate-200 bg-slate-50 p-4 shadow-sm">
+                                                    <span className="text-[11px] font-black uppercase text-slate-600">
+                                                        Página {safeNotifPage} de {totalNotifPages} ({cancelledApps.length} notificações)
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNotifPage(p => Math.max(1, p - 1))}
+                                                            disabled={safeNotifPage === 1}
+                                                            className={`w-8 h-8 flex items-center justify-center border font-black text-xs transition-all ${
+                                                                safeNotifPage === 1 
+                                                                    ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-white' 
+                                                                    : 'border-slate-300 text-slate-800 hover:bg-red-600 hover:text-white hover:border-red-600 bg-white shadow-sm'
+                                                            }`}
+                                                            title="Página Anterior"
                                                         >
-                                                            <i className="fas fa-calendar-alt text-sm"></i> REAGENDAR CONSULTA
+                                                            <i className="fas fa-chevron-left"></i>
                                                         </button>
-                                                        {cleanPhone && (
-                                                            <a 
-                                                                href={`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá ${app.patientName}, vi que sua consulta no dia ${app.date} às ${app.time} no MedAgendar foi cancelada. Gostaria de remarcar?`)}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="px-4 py-2.5 bg-emerald-600 text-white font-black uppercase text-[10px] tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-sm"
-                                                            >
-                                                                <i className="fab fa-whatsapp text-sm"></i> CONTATAR VIA WHATSAPP
-                                                            </a>
-                                                        )}
+                                                        <span className="px-3 py-1 bg-white border border-slate-300 text-xs font-black text-slate-900 shadow-sm">
+                                                            {safeNotifPage} / {totalNotifPages}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNotifPage(p => Math.min(totalNotifPages, p + 1))}
+                                                            disabled={safeNotifPage === totalNotifPages}
+                                                            className={`w-8 h-8 flex items-center justify-center border font-black text-xs transition-all ${
+                                                                safeNotifPage === totalNotifPages 
+                                                                    ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-white' 
+                                                                    : 'border-slate-300 text-slate-800 hover:bg-red-600 hover:text-white hover:border-red-600 bg-white shadow-sm'
+                                                            }`}
+                                                            title="Próxima Página"
+                                                        >
+                                                            <i className="fas fa-chevron-right"></i>
+                                                        </button>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
                         {activeTab === 'chat' && (
@@ -4765,134 +4881,134 @@
             const selectedPartnerForReport = (doctors || []).find(d => d.id === reportDoctorFilter);
 
             return (
-                <div className="lg:max-w-none mx-auto px-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-4">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-2xl sm:text-3xl lg:text-xl font-black uppercase">Painel Administrativo</h2>
+                <div className="lg:max-w-none mx-auto px-2 sm:px-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            <h2 className="text-xl sm:text-2xl lg:text-xl font-black uppercase">Painel Administrativo</h2>
                             {pendingCount > 0 && (
-                                <span className="px-3 py-1 bg-amber-500 text-white font-black text-[9px] uppercase tracking-widest rounded-full animate-bounce">
+                                <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-amber-500 text-white font-black text-[8px] sm:text-[9px] uppercase tracking-wider rounded-full animate-bounce">
                                     <i className="fas fa-clock mr-1"></i> {pendingCount} PENDENTE{pendingCount > 1 ? 'S' : ''}
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
                             <button 
                                 onClick={() => setAdminTab('reports')}
-                                className="px-5 py-3 bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest hover:bg-red-600 transition-all flex items-center gap-2 shadow-md"
+                                className="px-3.5 py-2 sm:px-5 sm:py-2.5 bg-slate-900 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-600 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md active-scale"
                             >
                                 <i className="fas fa-file-invoice"></i> RELATÓRIO GERAL
                             </button>
                             <button 
                                 onClick={() => setShowShareModal('main')}
-                                className="px-5 py-3 bg-red-600 text-white font-black uppercase text-[10px] tracking-widest hover:bg-red-700 transition-all flex items-center gap-2 shadow-lg"
+                                className="px-3.5 py-2 sm:px-5 sm:py-2.5 bg-red-600 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-700 transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg active-scale"
                             >
                                 <i className="fas fa-share-alt"></i> COMPARTILHAR SITE
                             </button>
-                            <button onClick={() => onAuthenticate(false)} className="text-[10px] font-black uppercase text-red-600 hover:text-slate-900">SAIR DO PAINEL</button>
+                            <button onClick={() => onAuthenticate(false)} className="text-[9px] sm:text-[10px] font-black uppercase text-red-600 hover:text-slate-900 ml-1">SAIR</button>
                         </div>
                     </div>
 
                     {/* Navigation Tabs in Admin */}
-                    <div className="flex flex-wrap gap-3 mb-6 border-b-2 border-slate-200 pb-2">
+                    <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto scrollbar-hide gap-1.5 sm:gap-2 mb-4 sm:mb-6 border-b-2 border-slate-200 pb-2">
                         <button 
                             onClick={() => setAdminTab('partners')}
-                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'partners' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                            className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'partners' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
                             <i className="fas fa-users-cog"></i> PROFISSIONAIS E SENHAS ({(doctors || []).length})
                         </button>
                         <button 
                             onClick={() => setAdminTab('reports')}
-                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'reports' ? 'border-red-600 text-red-600 bg-red-50/50 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                            className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'reports' ? 'border-red-600 text-red-600 bg-red-50/50 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
                             <i className="fas fa-chart-line text-red-600"></i> RELATÓRIO ({allMovements.length})
                         </button>
                         <button 
                             onClick={() => setAdminTab('attachments')}
-                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'attachments' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                            className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'attachments' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
-                            <i className="fas fa-paperclip"></i> TODOS OS ANEXOS DO SITE ({totalAttachmentsCount})
+                            <i className="fas fa-paperclip"></i> TODOS OS ANEXOS ({(totalAttachmentsCount)})
                         </button>
                         <button 
                             onClick={() => setAdminTab('chat')}
-                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'chat' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                            className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'chat' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
-                            <i className="fas fa-comments text-red-600"></i> CHAT DE SUPORTE AO VIVO ({(supportMessages || []).length})
+                            <i className="fas fa-comments text-red-600"></i> CHAT SUPORTE ({(supportMessages || []).length})
                         </button>
                     </div>
 
                     {adminTab === 'partners' && (
                         <div>
                             {/* Filtros de Status no Admin */}
-                            <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
+                            <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto scrollbar-hide gap-1.5 sm:gap-2 mb-4 sm:mb-6 border-b border-slate-200 pb-3">
                                 <button 
                                     onClick={() => setStatusFilter('all')}
-                                    className={`px-4 py-2 font-black uppercase text-[10px] tracking-widest border-2 transition-all ${statusFilter === 'all' ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                    className={`px-3 py-1.5 sm:px-4 sm:py-2 font-black uppercase text-[9px] sm:text-[10px] tracking-wider border-2 transition-all whitespace-nowrap shrink-0 ${statusFilter === 'all' ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                                 >
                                     TODOS ({(doctors || []).length})
                                 </button>
                                 <button 
                                     onClick={() => setStatusFilter('active')}
-                                    className={`px-4 py-2 font-black uppercase text-[10px] tracking-widest border-2 transition-all ${statusFilter === 'active' ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' : 'bg-white border-slate-200 text-emerald-700 hover:bg-emerald-50'}`}
+                                    className={`px-3 py-1.5 sm:px-4 sm:py-2 font-black uppercase text-[9px] sm:text-[10px] tracking-wider border-2 transition-all whitespace-nowrap shrink-0 ${statusFilter === 'active' ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' : 'bg-white border-slate-200 text-emerald-700 hover:bg-emerald-50'}`}
                                 >
-                                    <i className="fas fa-check-circle mr-1.5"></i> ATIVOS ({activeCount})
+                                    <i className="fas fa-check-circle mr-1"></i> ATIVOS ({activeCount})
                                 </button>
                                 <button 
                                     onClick={() => setStatusFilter('suspended')}
-                                    className={`px-4 py-2 font-black uppercase text-[10px] tracking-widest border-2 transition-all ${statusFilter === 'suspended' ? 'bg-slate-700 border-slate-700 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1.5 sm:px-4 sm:py-2 font-black uppercase text-[9px] sm:text-[10px] tracking-wider border-2 transition-all whitespace-nowrap shrink-0 ${statusFilter === 'suspended' ? 'bg-slate-700 border-slate-700 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
                                 >
-                                    <i className="fas fa-ban mr-1.5"></i> SUSPENSOS ({suspendedCount})
+                                    <i className="fas fa-ban mr-1"></i> SUSPENSOS ({suspendedCount})
                                 </button>
                                 <button 
                                     onClick={() => setStatusFilter('pending')}
-                                    className={`px-4 py-2 font-black uppercase text-[10px] tracking-widest border-2 transition-all ${statusFilter === 'pending' ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-slate-200 text-amber-700 hover:bg-amber-50'}`}
+                                    className={`px-3 py-1.5 sm:px-4 sm:py-2 font-black uppercase text-[9px] sm:text-[10px] tracking-wider border-2 transition-all whitespace-nowrap shrink-0 ${statusFilter === 'pending' ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-slate-200 text-amber-700 hover:bg-amber-50'}`}
                                 >
-                                    <i className="fas fa-clock mr-1.5"></i> PENDENTES ({pendingCount})
+                                    <i className="fas fa-clock mr-1"></i> PENDENTES ({pendingCount})
                                 </button>
                             </div>
                             
-                            <div className="space-y-4 lg:space-y-3">
+                            <div className="space-y-3">
                                 {filteredDoctors.length === 0 ? (
-                                    <div className="p-8 text-center bg-white border border-slate-200 text-xs font-black uppercase text-slate-500">
+                                    <div className="p-6 sm:p-8 text-center bg-white border border-slate-200 text-xs font-black uppercase text-slate-500">
                                         Nenhum profissional encontrado com o filtro selecionado.
                                     </div>
                                 ) : (
                                     filteredDoctors.map(doc => {
                                         const currentPass = editingPasswords[doc.id] !== undefined ? editingPasswords[doc.id] : (doc.accessCode || '');
                                         return (
-                                            <div key={doc.id} className="bg-white border border-slate-200 p-6 lg:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
-                                                <div className="space-y-2 flex-1">
-                                                    <div className="flex items-center gap-4 lg:gap-3">
-                                                        <img src={doc.image} className="w-12 h-12 lg:w-10 lg:h-10 object-cover border border-slate-200 shrink-0" alt={doc.name} referrerPolicy="no-referrer" />
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <h3 className="font-black uppercase text-sm lg:text-[12px]">{doc.name}</h3>
-                                                                <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-widest ${doc.isClinic ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}`}>
-                                                                    {doc.isClinic ? 'Pessoa Jurídica (Clínica)' : 'Pessoa Física'}
+                                            <div key={doc.id} className="bg-white border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 shadow-sm hover:border-slate-300 transition-all">
+                                                <div className="space-y-1.5 flex-1 min-w-0 w-full md:w-auto">
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={doc.image} className="w-10 h-10 sm:w-11 sm:h-11 object-cover border border-slate-200 shrink-0" alt={doc.name} referrerPolicy="no-referrer" />
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <h3 className="font-black uppercase text-xs sm:text-sm text-slate-900 truncate">{doc.name}</h3>
+                                                                <span className={`px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded ${doc.isClinic ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}`}>
+                                                                    {doc.isClinic ? 'PJ (Clínica)' : 'PF (Profissional)'}
                                                                 </span>
                                                             </div>
-                                                            <p className="text-[10px] lg:text-[9px] font-bold text-slate-700 uppercase mt-0.5">
+                                                            <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mt-0.5">
                                                                 {doc.isClinic ? `CNPJ: ${doc.cnpj || 'Não informado'}` : `CRM: ${doc.crm || 'Não informado'}`} {doc.email ? `• ${doc.email}` : ''}
                                                             </p>
                                                         </div>
                                                     </div>
 
                                                     {/* Gerenciamento de Senha */}
-                                                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 mt-2">
-                                                        <span className="text-[10px] font-black uppercase text-slate-500 shrink-0 flex items-center gap-1">
-                                                            <i className="fas fa-key text-red-600"></i> Senha de Acesso:
+                                                    <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-100">
+                                                        <span className="text-[9px] sm:text-[10px] font-black uppercase text-slate-500 shrink-0 flex items-center gap-1">
+                                                            <i className="fas fa-key text-red-600"></i> Senha:
                                                         </span>
-                                                        <div className="flex items-center gap-1">
+                                                        <div className="flex items-center gap-1 flex-wrap">
                                                             <input 
                                                                 type={showPasswords[doc.id] ? "text" : "password"} 
-                                                                className="px-3 py-1.5 bg-slate-50 border border-slate-300 font-mono text-xs font-black uppercase text-slate-900 outline-none focus:border-red-600 focus:bg-white w-32 sm:w-40"
+                                                                className="px-2.5 py-1 bg-slate-50 border border-slate-300 font-mono text-[11px] font-black uppercase text-slate-900 outline-none focus:border-red-600 focus:bg-white w-28 sm:w-36"
                                                                 value={currentPass}
                                                                 onChange={(e) => setEditingPasswords(prev => ({ ...prev, [doc.id]: e.target.value }))}
-                                                                placeholder="DIGITE A SENHA"
+                                                                placeholder="SENHA"
                                                             />
                                                             <button 
                                                                 type="button"
                                                                 onClick={() => setShowPasswords(prev => ({ ...prev, [doc.id]: !prev[doc.id] }))}
-                                                                className="p-2 bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 text-xs shrink-0"
+                                                                className="p-1.5 bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 text-xs shrink-0"
                                                                 title={showPasswords[doc.id] ? "Ocultar Senha" : "Mostrar Senha"}
                                                             >
                                                                 <i className={`fas ${showPasswords[doc.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
@@ -4908,39 +5024,39 @@
                                                                     setDoctors(doc.id, { accessCode: newPass.trim() });
                                                                     showNotification(`Senha de ${doc.name} alterada com sucesso para: ${newPass.trim()}`);
                                                                 }}
-                                                                className="px-3 py-1.5 bg-slate-900 text-white font-black uppercase text-[9px] tracking-wider hover:bg-red-600 transition-all shrink-0"
+                                                                className="px-2.5 py-1 bg-slate-900 text-white font-black uppercase text-[8px] sm:text-[9px] tracking-wider hover:bg-red-600 transition-all shrink-0 active-scale"
                                                             >
-                                                                MUDAR SENHA
+                                                                SALVAR
                                                             </button>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-4 lg:gap-3 shrink-0 self-end md:self-center">
+                                                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end flex-wrap mt-1 md:mt-0">
                                                     <button 
                                                         onClick={() => setShowShareModal(doc.id)}
-                                                        className="p-3 bg-slate-100 text-slate-900 hover:bg-red-600 hover:text-white transition-all"
+                                                        className="p-2 sm:p-2.5 bg-slate-100 text-slate-900 hover:bg-red-600 hover:text-white transition-all text-xs active-scale border border-slate-200"
                                                         title="Compartilhar Perfil"
                                                     >
                                                         <i className="fas fa-share-alt"></i>
                                                     </button>
                                                     <button 
                                                         onClick={() => toggleStatus(doc.id, doc.status)} 
-                                                        className={`px-4 py-2 lg:px-3 lg:py-1 font-black uppercase text-[9px] border-2 transition-all ${
+                                                        className={`px-3 py-1.5 sm:px-3.5 sm:py-1.5 font-black uppercase text-[8px] sm:text-[9px] border-2 transition-all active-scale ${
                                                             doc.status === 'active' 
-                                                                ? 'bg-emerald-500 text-white border-emerald-500' 
+                                                                ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600' 
                                                                 : doc.status === 'pending'
                                                                 ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600 animate-pulse'
-                                                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                                                         }`}
                                                     >
-                                                        {doc.status === 'active' ? 'ATIVO' : doc.status === 'pending' ? 'LIBERAR ACESSO' : 'SUSPENSO'}
+                                                        {doc.status === 'active' ? 'ATIVO' : doc.status === 'pending' ? 'LIBERAR' : 'SUSPENSO'}
                                                     </button>
                                                     <button 
                                                         onClick={() => { 
                                                             showConfirmation(`Tem certeza que deseja excluir o profissional ${doc.name}?`, () => onDeleteDoctor(doc.id)); 
                                                         }} 
-                                                        className="text-red-600 font-black uppercase text-[10px] lg:text-[9px] hover:scale-110 transition-transform"
+                                                        className="px-2 py-1 text-red-600 font-black uppercase text-[9px] hover:text-white hover:bg-red-600 border border-red-200 transition-all active-scale"
                                                     >
                                                         EXCLUIR
                                                     </button>
@@ -4954,53 +5070,53 @@
                     )}
 
                     {adminTab === 'attachments' && (
-                        <div className="space-y-6">
-                            <div className="bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">
-                                <span className="text-xs font-black uppercase text-slate-700">
+                        <div className="space-y-4">
+                            <div className="bg-slate-50 border border-slate-200 p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
+                                <span className="text-[11px] sm:text-xs font-black uppercase text-slate-700">
                                     <i className="fas fa-folder-open text-red-600 mr-2"></i>
-                                    Gerenciamento Central de Anexos e Documentos do Sistema
+                                    Gerenciamento Central de Anexos e Documentos
                                 </span>
-                                <span className="text-[10px] font-black uppercase bg-slate-900 text-white px-3 py-1">
+                                <span className="text-[9px] sm:text-[10px] font-black uppercase bg-slate-900 text-white px-2.5 py-1">
                                     {totalAttachmentsCount} ARQUIVO{totalAttachmentsCount === 1 ? '' : 'S'}
                                 </span>
                             </div>
 
                             {totalAttachmentsCount === 0 ? (
-                                <div className="p-12 text-center bg-white border border-slate-200 text-xs font-black uppercase text-slate-500">
+                                <div className="p-8 sm:p-12 text-center bg-white border border-slate-200 text-xs font-black uppercase text-slate-500">
                                     Nenhum anexo encontrado no site no momento.
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     {/* Anexos de Agendamentos */}
                                     {appointmentAttachments.map(app => (
-                                        <div key={`app-file-${app.id}`} className="bg-white border border-slate-200 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm hover:border-red-600 transition-colors">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg">
+                                        <div key={`app-file-${app.id}`} className="bg-white border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm hover:border-red-600 transition-colors">
+                                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                <div className="w-9 h-9 bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-base rounded">
                                                     <i className="fas fa-file-medical"></i>
                                                 </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-black uppercase text-xs text-slate-900">{app.document.name}</h4>
-                                                        <span className="px-2 py-0.5 bg-red-100 text-red-800 font-black text-[8px] uppercase">Documento de Consulta</span>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <h4 className="font-black uppercase text-xs sm:text-sm text-slate-900 truncate">{app.document.name}</h4>
+                                                        <span className="px-1.5 py-0.5 bg-red-100 text-red-800 font-black text-[8px] uppercase rounded">Consulta</span>
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-slate-600 uppercase mt-1">
+                                                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mt-0.5">
                                                         Paciente: <strong className="text-slate-900">{app.patientName}</strong> (CPF: {app.patientCPF} • Tel: {app.patientPhone})
                                                     </p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">
-                                                        Profissional/Clínica: {(doctors.find(d => d.id === app.doctorId)?.name || 'Profissional')} • Agendado para {app.date} às {app.time}
+                                                    <p className="text-[8px] sm:text-[9px] font-bold text-slate-500 uppercase mt-0.5">
+                                                        Prof/Clínica: {(doctors.find(d => d.id === app.doctorId)?.name || 'Profissional')} • Agendado para {app.date} às {app.time}
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
+                                            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end mt-1 md:mt-0 flex-wrap">
                                                 <a 
                                                     href={app.document.data} 
                                                     download={app.document.name} 
                                                     target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="px-4 py-2 bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5"
+                                                    rel="noopener noreferrer" 
+                                                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5 active-scale"
                                                 >
-                                                    <i className="fas fa-download"></i> BAIXAR / VER
+                                                    <i className="fas fa-download"></i> BAIXAR
                                                 </a>
                                                 <button 
                                                     onClick={() => {
@@ -5011,38 +5127,38 @@
                                                             }
                                                         });
                                                     }}
-                                                    className="px-4 py-2 border-2 border-red-600 text-red-600 font-black uppercase text-[10px] tracking-wider hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5"
+                                                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 border border-red-600 text-red-600 font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 active-scale"
                                                 >
-                                                    <i className="fas fa-trash-alt"></i> EXCLUIR ANEXO
+                                                    <i className="fas fa-trash-alt"></i> EXCLUIR
                                                 </button>
                                             </div>
                                         </div>
                                     ))}
 
-                                    {/* Fotos/Anexos de Perfil En enviados */}
+                                    {/* Fotos/Anexos de Perfil Enviados */}
                                     {doctorImageAttachments.map(doc => (
-                                        <div key={`doc-img-${doc.id}`} className="bg-white border border-slate-200 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm hover:border-red-600 transition-colors">
-                                            <div className="flex items-start gap-4">
-                                                <img src={doc.image} className="w-12 h-12 object-cover border border-slate-300 shrink-0" alt={doc.name} referrerPolicy="no-referrer" />
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-black uppercase text-xs text-slate-900">Foto / Anexo do Perfil: {doc.name}</h4>
-                                                        <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 font-black text-[8px] uppercase">Imagem de Perfil</span>
+                                        <div key={`doc-img-${doc.id}`} className="bg-white border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm hover:border-red-600 transition-colors">
+                                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                <img src={doc.image} className="w-10 h-10 object-cover border border-slate-300 shrink-0" alt={doc.name} referrerPolicy="no-referrer" />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <h4 className="font-black uppercase text-xs sm:text-sm text-slate-900 truncate">Foto Perfil: {doc.name}</h4>
+                                                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 font-black text-[8px] uppercase rounded">Perfil</span>
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-slate-600 uppercase mt-1">
+                                                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mt-0.5">
                                                         Enviado por: <strong className="text-slate-900">{doc.name}</strong> ({doc.isClinic ? `CNPJ: ${doc.cnpj || 'N/A'}` : `CRM: ${doc.crm || 'N/A'}`})
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
+                                            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-start sm:justify-end mt-1 md:mt-0 flex-wrap">
                                                 <a 
                                                     href={doc.image} 
                                                     target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="px-4 py-2 bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5"
+                                                    rel="noopener noreferrer" 
+                                                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5 active-scale"
                                                 >
-                                                    <i className="fas fa-external-link-alt"></i> VER IMAGEM
+                                                    <i className="fas fa-external-link-alt"></i> VER
                                                 </a>
                                                 <button 
                                                     onClick={() => {
@@ -5054,9 +5170,9 @@
                                                             showNotification("Imagem de perfil excluída com sucesso!");
                                                         });
                                                     }}
-                                                    className="px-4 py-2 border-2 border-red-600 text-red-600 font-black uppercase text-[10px] tracking-wider hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5"
+                                                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 border border-red-600 text-red-600 font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 active-scale"
                                                 >
-                                                    <i className="fas fa-trash-alt"></i> EXCLUIR IMAGEM
+                                                    <i className="fas fa-trash-alt"></i> EXCLUIR
                                                 </button>
                                             </div>
                                         </div>
@@ -5244,32 +5360,32 @@
 
                     {/* ABA DE RELATÓRIOS E AUDITORIA COMPLETA */}
                     {adminTab === 'reports' && (
-                        <div className="space-y-6">
+                        <div className="space-y-4 sm:space-y-6">
                             {/* Top Banner do Relatório */}
-                            <div className="bg-slate-900 text-white p-6 border border-slate-800 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="bg-slate-900 text-white p-4 sm:p-5 border border-slate-800 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
                                 <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded">AUDITORIA GERAL</span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase">• SISTEMA DE MOVIMENTAÇÕES</span>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] sm:text-[9px] font-black uppercase tracking-wider rounded">AUDITORIA GERAL</span>
+                                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase">• SISTEMA DE MOVIMENTAÇÕES</span>
                                     </div>
-                                    <h3 className="text-xl font-black uppercase tracking-wide flex items-center gap-2">
+                                    <h3 className="text-base sm:text-lg font-black uppercase tracking-wide flex items-center gap-2">
                                         <i className="fas fa-file-invoice text-red-500"></i> Relatório Geral de Ações & Movimentações
                                     </h3>
-                                    <p className="text-xs text-slate-300 font-bold mt-1">
+                                    <p className="text-[11px] sm:text-xs text-slate-300 font-bold mt-0.5">
                                         Consulte em tempo real tudo o que está acontecendo no sistema: cadastros, agendamentos, remarcações, cancelamentos, documentos e mensagens.
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full md:w-auto justify-start md:justify-end">
                                     <button 
                                         onClick={handleExportCSV}
-                                        className="px-4 py-2.5 bg-emerald-600 text-white font-black text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-md active-scale"
+                                        className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-emerald-600 text-white font-black text-[9px] sm:text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-1.5 shadow-md active-scale"
                                         title="Exportar dados filtrados para planilha Excel/CSV"
                                     >
                                         <i className="fas fa-file-excel"></i> EXPORTAR CSV
                                     </button>
                                     <button 
                                         onClick={() => window.print()}
-                                        className="px-4 py-2.5 bg-white text-slate-900 font-black text-xs uppercase tracking-wider hover:bg-slate-100 transition-all flex items-center gap-2 shadow-md active-scale"
+                                        className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white text-slate-900 font-black text-[9px] sm:text-xs uppercase tracking-wider hover:bg-slate-100 transition-all flex items-center gap-1.5 shadow-md active-scale"
                                         title="Imprimir ou salvar como PDF"
                                     >
                                         <i className="fas fa-print"></i> IMPRIMIR / PDF
@@ -5278,60 +5394,60 @@
                             </div>
 
                             {/* KPI Metrics Summary Grid */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Ações</p>
-                                    <p className="text-2xl font-black text-slate-900 mt-1">{allMovements.length}</p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Registradas</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Ações</p>
+                                    <p className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{allMovements.length}</p>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Registradas</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-blue-600 tracking-wider">Cadastros</p>
-                                    <p className="text-2xl font-black text-blue-700 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-blue-600 tracking-wider">Cadastros</p>
+                                    <p className="text-xl sm:text-2xl font-black text-blue-700 mt-0.5">
                                         {allMovements.filter(m => m.category === 'cadastros').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">PF e PJ</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">PF e PJ</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-emerald-600 tracking-wider">Agendamentos</p>
-                                    <p className="text-2xl font-black text-emerald-700 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-600 tracking-wider">Agendamentos</p>
+                                    <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">
                                         {allMovements.filter(m => m.type === 'APPOINTMENT_CREATED').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Criados</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Criados</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Concluídas</p>
-                                    <p className="text-2xl font-black text-emerald-800 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-700 tracking-wider">Concluídas</p>
+                                    <p className="text-xl sm:text-2xl font-black text-emerald-800 mt-0.5">
                                         {allMovements.filter(m => m.type === 'APPOINTMENT_COMPLETED').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Finalizadas</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Finalizadas</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-amber-600 tracking-wider">Reagendados</p>
-                                    <p className="text-2xl font-black text-amber-700 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-amber-600 tracking-wider">Reagendados</p>
+                                    <p className="text-xl sm:text-2xl font-black text-amber-700 mt-0.5">
                                         {allMovements.filter(m => m.category === 'reagendamentos').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Alterados</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Alterados</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-red-600 tracking-wider">Cancelados</p>
-                                    <p className="text-2xl font-black text-red-700 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-red-600 tracking-wider">Cancelados</p>
+                                    <p className="text-xl sm:text-2xl font-black text-red-700 mt-0.5">
                                         {allMovements.filter(m => m.type === 'APPOINTMENT_CANCELLED').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Cancelamentos</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Cancelamentos</span>
                                 </div>
-                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
-                                    <p className="text-[9px] font-black uppercase text-purple-600 tracking-wider">Documentos</p>
-                                    <p className="text-2xl font-black text-purple-700 mt-1">
+                                <div className="p-3 sm:p-3.5 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[8px] sm:text-[9px] font-black uppercase text-purple-600 tracking-wider">Documentos</p>
+                                    <p className="text-xl sm:text-2xl font-black text-purple-700 mt-0.5">
                                         {allMovements.filter(m => m.category === 'anexos').length}
                                     </p>
-                                    <span className="text-[8px] font-black uppercase text-slate-400">Anexos</span>
+                                    <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Anexos</span>
                                 </div>
                             </div>
 
                             {/* Filtros e Barra de Pesquisa */}
-                            <div className="bg-white p-5 border border-slate-200 shadow-sm space-y-4">
-                                <div className="flex justify-between items-center pb-3 border-b border-slate-100 flex-wrap gap-2">
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <div className="bg-white p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
+                                <div className="flex justify-between items-center pb-2 border-b border-slate-100 flex-wrap gap-2">
+                                    <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                                         <i className="fas fa-filter text-red-600"></i> Filtros de Auditoria
                                     </h4>
                                     {(reportDoctorFilter !== 'all' || reportCategoryFilter !== 'all' || reportPeriodFilter !== 'all' || reportSearchQuery) && (
@@ -5342,23 +5458,23 @@
                                                 setReportPeriodFilter('all');
                                                 setReportSearchQuery('');
                                             }}
-                                            className="text-[10px] font-black uppercase text-red-600 hover:underline flex items-center gap-1"
+                                            className="text-[9px] sm:text-[10px] font-black uppercase text-red-600 hover:underline flex items-center gap-1"
                                         >
                                             <i className="fas fa-times-circle"></i> Limpar Filtros
                                         </button>
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                                     {/* 1. Selecionar Profissional / Clínica */}
                                     <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                        <label className="text-[8px] sm:text-[9px] font-black uppercase text-slate-700 tracking-wider">
                                             Profissional / Clínica ({doctors.length})
                                         </label>
                                         <select 
                                             value={reportDoctorFilter} 
                                             onChange={(e) => setReportDoctorFilter(e.target.value)}
-                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                            className="w-full p-2 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
                                         >
                                             <option value="all">TODOS OS PROFISSIONAIS E CLÍNICAS</option>
                                             {(doctors || []).map(doc => (
@@ -5371,13 +5487,13 @@
 
                                     {/* 2. Categoria / Tipo de Ação */}
                                     <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                        <label className="text-[8px] sm:text-[9px] font-black uppercase text-slate-700 tracking-wider">
                                             Tipo de Movimentação
                                         </label>
                                         <select 
                                             value={reportCategoryFilter} 
                                             onChange={(e) => setReportCategoryFilter(e.target.value)}
-                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                            className="w-full p-2 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
                                         >
                                             <option value="all">TODAS AS CATEGORIAS</option>
                                             <option value="cadastros">👤 CADASTROS (PARCEIROS & EQUIPE)</option>
@@ -5392,13 +5508,13 @@
 
                                     {/* 3. Período */}
                                     <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                        <label className="text-[8px] sm:text-[9px] font-black uppercase text-slate-700 tracking-wider">
                                             Período
                                         </label>
                                         <select 
                                             value={reportPeriodFilter} 
                                             onChange={(e) => setReportPeriodFilter(e.target.value)}
-                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                            className="w-full p-2 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
                                         >
                                             <option value="all">TODO O HISTÓRICO</option>
                                             <option value="today">HOJE</option>
@@ -5409,7 +5525,7 @@
 
                                     {/* 4. Busca Textual */}
                                     <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                        <label className="text-[8px] sm:text-[9px] font-black uppercase text-slate-700 tracking-wider">
                                             Buscar por Paciente, CPF, Notas
                                         </label>
                                         <div className="relative">
@@ -5418,9 +5534,9 @@
                                                 value={reportSearchQuery}
                                                 onChange={(e) => setReportSearchQuery(e.target.value)}
                                                 placeholder="NOME, CPF, NOTAS..."
-                                                className="w-full p-2.5 pl-8 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white uppercase"
+                                                className="w-full p-2 pl-7 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white uppercase"
                                             />
-                                            <i className="fas fa-search absolute left-3 top-3.5 text-slate-400 text-xs"></i>
+                                            <i className="fas fa-search absolute left-2.5 top-3 text-slate-400 text-xs"></i>
                                         </div>
                                     </div>
                                 </div>
@@ -5428,37 +5544,37 @@
 
                             {/* Card Resumo do Parceiro Selecionado (Quando filtrado por um parceiro específico) */}
                             {selectedPartnerForReport && (
-                                <div className="bg-slate-50 border-2 border-slate-900 p-5 shadow-sm">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4 mb-4">
-                                        <div className="flex items-center gap-4">
+                                <div className="bg-slate-50 border-2 border-slate-900 p-3.5 sm:p-4 shadow-sm">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-200 pb-3 mb-3">
+                                        <div className="flex items-center gap-3">
                                             <img 
                                                 src={selectedPartnerForReport.image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150'} 
                                                 alt={selectedPartnerForReport.name} 
-                                                className="w-16 h-16 object-cover border-2 border-slate-900 bg-white"
+                                                className="w-12 h-12 sm:w-14 sm:h-14 object-cover border-2 border-slate-900 bg-white shrink-0"
                                             />
-                                            <div>
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h4 className="text-lg font-black uppercase text-slate-900">{selectedPartnerForReport.name}</h4>
-                                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${selectedPartnerForReport.isClinic ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'}`}>
-                                                        {selectedPartnerForReport.isClinic ? 'Pessoa Jurídica (Clínica)' : 'Pessoa Física'}
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <h4 className="text-sm sm:text-base font-black uppercase text-slate-900 truncate">{selectedPartnerForReport.name}</h4>
+                                                    <span className={`px-1.5 py-0.5 text-[8px] font-black uppercase rounded ${selectedPartnerForReport.isClinic ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'}`}>
+                                                        {selectedPartnerForReport.isClinic ? 'PJ (Clínica)' : 'PF (Profissional)'}
                                                     </span>
-                                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${selectedPartnerForReport.status === 'active' ? 'bg-emerald-100 text-emerald-800' : (selectedPartnerForReport.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800')}`}>
-                                                        STATUS: {selectedPartnerForReport.status || 'active'}
+                                                    <span className={`px-1.5 py-0.5 text-[8px] font-black uppercase rounded ${selectedPartnerForReport.status === 'active' ? 'bg-emerald-100 text-emerald-800' : (selectedPartnerForReport.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800')}`}>
+                                                        {selectedPartnerForReport.status || 'active'}
                                                     </span>
                                                 </div>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-bold text-slate-700">
+                                                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[10px] font-bold text-slate-600">
                                                     <span>{selectedPartnerForReport.isClinic ? `CNPJ: ${selectedPartnerForReport.cnpj || 'N/A'}` : `CRM: ${selectedPartnerForReport.crm || 'N/A'}`}</span>
                                                     <span>•</span>
                                                     <span>E-mail: {selectedPartnerForReport.email || 'Não informado'}</span>
                                                     <span>•</span>
-                                                    <span>Cidade: {selectedPartnerForReport.city || 'N/A'} - {selectedPartnerForReport.state || ''}</span>
+                                                    <span>{selectedPartnerForReport.city || 'N/A'} - {selectedPartnerForReport.state || ''}</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-white p-3 border border-slate-200 flex items-center gap-3">
+                                        <div className="bg-white p-2.5 border border-slate-200 flex items-center gap-2.5 shrink-0 self-start md:self-auto">
                                             <div>
-                                                <p className="text-[8px] font-black uppercase text-slate-400">Senha do Painel</p>
+                                                <p className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Senha do Painel</p>
                                                 <p className="text-xs font-mono font-black text-slate-900">{selectedPartnerForReport.accessCode || 'NÃO DEFINIDA'}</p>
                                             </div>
                                             <button 
@@ -5466,7 +5582,7 @@
                                                     navigator.clipboard.writeText(selectedPartnerForReport.accessCode || '');
                                                     showNotification('Senha copiada!');
                                                 }}
-                                                className="p-2 bg-slate-100 hover:bg-red-600 hover:text-white text-slate-700 text-xs transition-all"
+                                                className="p-1.5 bg-slate-100 hover:bg-red-600 hover:text-white text-slate-700 text-xs transition-all active-scale"
                                                 title="Copiar senha de acesso"
                                             >
                                                 <i className="fas fa-copy"></i>
@@ -5475,36 +5591,36 @@
                                     </div>
 
                                     {/* Estatísticas Individuais do Parceiro */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-                                        <div className="bg-white p-2.5 border border-slate-200">
-                                            <p className="text-[8px] font-black uppercase text-slate-400">Total Agendamentos</p>
-                                            <p className="text-base font-black text-slate-900">
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                                        <div className="bg-white p-2 border border-slate-200">
+                                            <p className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400">Total Agendamentos</p>
+                                            <p className="text-sm sm:text-base font-black text-slate-900">
                                                 {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id).length}
                                             </p>
                                         </div>
-                                        <div className="bg-white p-2.5 border border-slate-200">
-                                            <p className="text-[8px] font-black uppercase text-emerald-600">Concluídas</p>
-                                            <p className="text-base font-black text-emerald-700">
+                                        <div className="bg-white p-2 border border-slate-200">
+                                            <p className="text-[7px] sm:text-[8px] font-black uppercase text-emerald-600">Concluídas</p>
+                                            <p className="text-sm sm:text-base font-black text-emerald-700">
                                                 {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && a.status === 'completed').length}
                                             </p>
                                         </div>
-                                        <div className="bg-white p-2.5 border border-slate-200">
-                                            <p className="text-[8px] font-black uppercase text-amber-600">Reagendadas</p>
-                                            <p className="text-base font-black text-amber-700">
+                                        <div className="bg-white p-2 border border-slate-200">
+                                            <p className="text-[7px] sm:text-[8px] font-black uppercase text-amber-600">Reagendadas</p>
+                                            <p className="text-sm sm:text-base font-black text-amber-700">
                                                 {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && (a.isRescheduled || a.rescheduledFromId || a.status === 'rescheduled')).length}
                                             </p>
                                         </div>
-                                        <div className="bg-white p-2.5 border border-slate-200">
-                                            <p className="text-[8px] font-black uppercase text-red-600">Canceladas</p>
-                                            <p className="text-base font-black text-red-700">
+                                        <div className="bg-white p-2 border border-slate-200">
+                                            <p className="text-[7px] sm:text-[8px] font-black uppercase text-red-600">Canceladas</p>
+                                            <p className="text-sm sm:text-base font-black text-red-700">
                                                 {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && a.status === 'cancelled').length}
                                             </p>
                                         </div>
-                                        <div className="bg-white p-2.5 border border-slate-200">
-                                            <p className="text-[8px] font-black uppercase text-indigo-600">
+                                        <div className="bg-white p-2 border border-slate-200">
+                                            <p className="text-[7px] sm:text-[8px] font-black uppercase text-indigo-600">
                                                 {selectedPartnerForReport.isClinic ? 'Equipe Vinculada' : 'Preço Consulta'}
                                             </p>
-                                            <p className="text-base font-black text-indigo-700">
+                                            <p className="text-sm sm:text-base font-black text-indigo-700">
                                                 {selectedPartnerForReport.isClinic ? `${(selectedPartnerForReport.professionals || []).length} Prof.` : `R$ ${selectedPartnerForReport.price || '0'}`}
                                             </p>
                                         </div>
@@ -5513,19 +5629,19 @@
                             )}
 
                             {/* Lista Cronológica de Movimentações */}
-                            <div className="space-y-3">
+                            <div className="space-y-2.5">
                                 <div className="flex justify-between items-center px-1">
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                                        Movimentações Encontradas ({filteredMovements.length})
+                                    <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-900">
+                                        Movimentações ({filteredMovements.length})
                                     </h4>
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                        Ordenadas das mais recentes para as mais antigas
+                                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase">
+                                        Mais recentes primeiro
                                     </span>
                                 </div>
 
                                 {filteredMovements.length === 0 ? (
-                                    <div className="bg-white border border-dashed border-slate-300 p-12 text-center space-y-3">
-                                        <i className="fas fa-search text-3xl text-slate-400"></i>
+                                    <div className="bg-white border border-dashed border-slate-300 p-8 sm:p-10 text-center space-y-2.5">
+                                        <i className="fas fa-search text-2xl sm:text-3xl text-slate-400"></i>
                                         <p className="text-xs font-black uppercase text-slate-700">Nenhuma movimentação encontrada com os filtros selecionados.</p>
                                         <button 
                                             onClick={() => {
@@ -5534,7 +5650,7 @@
                                                 setReportPeriodFilter('all');
                                                 setReportSearchQuery('');
                                             }}
-                                            className="px-4 py-2 bg-slate-900 text-white font-black text-[10px] uppercase tracking-wider hover:bg-red-600 transition-all"
+                                            className="px-3.5 py-1.5 bg-slate-900 text-white font-black text-[9px] uppercase tracking-wider hover:bg-red-600 transition-all active-scale"
                                         >
                                             REDEFINIR TODOS OS FILTROS
                                         </button>
@@ -5548,26 +5664,26 @@
                                             return (
                                                 <div 
                                                     key={mov.id} 
-                                                    className="bg-white border border-slate-200 p-4 shadow-sm hover:border-slate-400 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                                                    className="bg-white border border-slate-200 p-3 sm:p-3.5 shadow-sm hover:border-slate-400 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-2.5 sm:gap-3"
                                                 >
                                                     {/* Lado Esquerdo: Ícone + Tipo + Detalhes Principais */}
-                                                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                        <div className={`w-10 h-10 rounded shrink-0 flex items-center justify-center text-sm ${mov.color} shadow-sm`}>
+                                                    <div className="flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0">
+                                                        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded shrink-0 flex items-center justify-center text-xs sm:text-sm ${mov.color} shadow-sm`}>
                                                             <i className={`fas ${mov.icon}`}></i>
                                                         </div>
 
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ${mov.badgeBg}`}>
+                                                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                                                <span className={`px-1.5 py-0.5 text-[8px] font-black uppercase rounded border ${mov.badgeBg}`}>
                                                                     {mov.typeLabel}
                                                                 </span>
-                                                                <span className="text-[10px] font-black text-slate-500 uppercase">
+                                                                <span className="text-[9px] font-black text-slate-500 uppercase">
                                                                     <i className="fas fa-clock mr-1"></i> {formattedDate} {formattedTime && `às ${formattedTime}`}
                                                                 </span>
                                                             </div>
 
                                                             {/* Título da Ação e Ator */}
-                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-black text-slate-900 uppercase">
+                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] sm:text-xs font-black text-slate-900 uppercase">
                                                                 <span>{mov.actorName}</span>
                                                                 <span className="text-slate-400 font-normal">({mov.actorType})</span>
                                                                 {mov.doctorName && mov.doctorName !== mov.actorName && (
@@ -5589,10 +5705,10 @@
                                                             </div>
 
                                                             {/* Detalhes Específicos por Tipo */}
-                                                            <div className="mt-1 text-[11px] font-bold text-slate-600 space-y-0.5">
+                                                            <div className="mt-0.5 text-[10px] sm:text-[11px] font-bold text-slate-600 space-y-0.5">
                                                                 {/* Agendamentos */}
                                                                 {mov.details?.patientCPF && (
-                                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-700">
+                                                                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-slate-700">
                                                                         <span>CPF: <strong className="text-slate-900">{mov.details.patientCPF}</strong></span>
                                                                         <span>•</span>
                                                                         <span>Tel: <strong className="text-slate-900">{mov.details.patientPhone || 'N/A'}</strong></span>
@@ -5610,7 +5726,7 @@
 
                                                                 {/* Informação de Reagendamento */}
                                                                 {mov.details?.rescheduledFromDate && (
-                                                                    <p className="text-amber-700 font-black text-[10px] uppercase">
+                                                                    <p className="text-amber-700 font-black text-[9px] sm:text-[10px] uppercase">
                                                                         <i className="fas fa-history mr-1"></i>
                                                                         Data Anterior: {formatDateLong(mov.details.rescheduledFromDate)} às {mov.details.rescheduledFromTime || ''}
                                                                     </p>
@@ -5618,7 +5734,7 @@
 
                                                                 {/* Cadastros de Parceiros */}
                                                                 {mov.details?.identifier && (
-                                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-700">
+                                                                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-slate-700">
                                                                         <span><strong>{mov.details.identifier}</strong></span>
                                                                         <span>•</span>
                                                                         <span>E-mail: {mov.details.email}</span>
@@ -5631,7 +5747,7 @@
 
                                                                 {/* Anexos */}
                                                                 {mov.details?.docName && (
-                                                                    <p className="text-purple-700 font-black text-[10px] uppercase flex items-center gap-1">
+                                                                    <p className="text-purple-700 font-black text-[9px] sm:text-[10px] uppercase flex items-center gap-1">
                                                                         <i className="fas fa-file-download text-purple-600"></i>
                                                                         Arquivo: <a href={mov.details.docData} download={mov.details.docName} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900">{mov.details.docName}</a>
                                                                     </p>
@@ -5639,14 +5755,14 @@
 
                                                                 {/* Mensagens de Suporte */}
                                                                 {mov.details?.text && (
-                                                                    <p className="text-slate-800 bg-slate-50 p-2 border border-slate-200 mt-1 italic text-[11px]">
+                                                                    <p className="text-slate-800 bg-slate-50 p-1.5 border border-slate-200 mt-1 italic text-[10px] sm:text-[11px]">
                                                                         "{mov.details.text}"
                                                                     </p>
                                                                 )}
 
                                                                 {/* Notas Gerais */}
                                                                 {mov.details?.notes && (
-                                                                    <p className="text-slate-500 text-[10px] uppercase">
+                                                                    <p className="text-slate-500 text-[9px] sm:text-[10px] uppercase">
                                                                         <i className="fas fa-sticky-note text-amber-500 mr-1"></i>
                                                                         Notas: {mov.details.notes}
                                                                     </p>
@@ -5656,11 +5772,11 @@
                                                     </div>
 
                                                     {/* Lado Direito: Ações Rápidas */}
-                                                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                                    <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
                                                         {mov.doctorId && (
                                                             <button 
                                                                 onClick={() => setReportDoctorFilter(mov.doctorId)}
-                                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[10px] font-black uppercase transition-all border border-slate-200"
+                                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[9px] sm:text-[10px] font-black uppercase transition-all border border-slate-200 active-scale"
                                                                 title="Filtrar todas as ações deste parceiro"
                                                             >
                                                                 <i className="fas fa-user mr-1"></i> VER PERFIL
@@ -5672,7 +5788,7 @@
                                                                 download={mov.details.docName || 'documento'} 
                                                                 target="_blank" 
                                                                 rel="noopener noreferrer"
-                                                                className="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white text-[10px] font-black uppercase transition-all border border-purple-200 flex items-center gap-1"
+                                                                className="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white text-[9px] sm:text-[10px] font-black uppercase transition-all border border-purple-200 flex items-center gap-1 active-scale"
                                                             >
                                                                 <i className="fas fa-download"></i> BAIXAR DOC
                                                             </a>
