@@ -2500,77 +2500,84 @@
                         .sort((a, b) => a[0].localeCompare(b[0]))
                         .map(([slotKey, apps]) => (
                             <div key={slotKey} className="border border-slate-200 bg-white overflow-hidden shadow-sm hover:border-red-600 transition-all">
-                                <div className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-                                    <h4 className="text-slate-900 font-black text-xs uppercase tracking-widest">
-                                        <i className="fas fa-clock mr-2 text-red-600"></i> {slotKey}
+                                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex justify-between items-center">
+                                    <h4 className="text-slate-900 font-black text-[11px] uppercase tracking-wider">
+                                        <i className="fas fa-clock mr-1.5 text-red-600"></i> {slotKey}
                                     </h4>
-                                    <span className="text-xs font-black text-slate-900 uppercase">{apps.length} PACIENTE(S)</span>
+                                    <span className="text-[10px] font-black text-slate-700 uppercase bg-white px-2 py-0.5 border border-slate-200">{apps.length} PACIENTE(S)</span>
                                 </div>
                                 <div className="divide-y divide-slate-100">
                                     {apps.map(app => (
-                                        <div key={app.id} className={`p-6 flex flex-col md:flex-row justify-between items-center gap-6 transition-all ${app.status === 'cancelled' ? 'opacity-50 bg-slate-50' : (app.status === 'completed' ? 'bg-emerald-50/30 border-l-4 border-emerald-600' : 'bg-white')}`}>
-                                            <div className="flex gap-6 items-center w-full md:w-auto">
-                                                <div className={`w-16 h-16 flex flex-col items-center justify-center font-black shrink-0 ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : (app.status === 'completed' ? 'bg-emerald-600 text-white shadow-md' : 'bg-red-600 text-white shadow-lg')}`}>
-                                                    <span className="text-[18px]">{app.time}</span>
+                                        <div key={app.id} className={`px-4 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-all ${app.status === 'cancelled' ? 'opacity-60 bg-slate-50' : (app.status === 'completed' ? 'bg-emerald-50/25 border-l-4 border-emerald-600' : 'bg-white hover:bg-slate-50/40')}`}>
+                                            <div className="flex gap-3 items-center w-full md:w-auto flex-1 min-w-0">
+                                                <div className={`px-2.5 py-1.5 flex flex-col items-center justify-center font-black shrink-0 min-w-[56px] ${app.status === 'cancelled' ? 'bg-slate-200 text-slate-900' : (app.status === 'completed' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-red-600 text-white shadow-sm')}`}>
+                                                    <span className="text-[14px] leading-tight">{app.time}</span>
                                                     {app.duration && app.isExtendedTime && (
                                                         <span className="text-[7px] font-black uppercase tracking-tighter opacity-90">{app.duration}M</span>
                                                     )}
                                                 </div>
-                                                <div>
+                                                <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className="font-black uppercase text-slate-900 text-lg">{app.patientName}</p>
+                                                        <p className="font-black uppercase text-slate-900 text-sm leading-tight">{app.patientName}</p>
                                                         {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
-                                                            <span className="px-2.5 py-0.5 bg-amber-500 text-white text-[9px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
+                                                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black uppercase rounded border border-amber-600 flex items-center gap-1 shadow-sm">
                                                                 <i className="fas fa-history"></i> Reagendamento
                                                             </span>
                                                         )}
                                                         {app.status === 'completed' && (
-                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase rounded border border-emerald-300 flex items-center gap-1">
+                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black uppercase rounded border border-emerald-300 flex items-center gap-1">
                                                                 <i className="fas fa-check-circle text-emerald-600"></i> CONCLUÍDA
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs font-bold text-slate-900 uppercase tracking-widest">{app.patientCPF} • {app.patientPhone}</p>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-[10px] font-bold text-slate-700 uppercase">
+                                                        <span>CPF: <strong className="text-slate-900">{app.patientCPF}</strong></span>
+                                                        <span>•</span>
+                                                        <span>Tel: <strong className="text-slate-900">{app.patientPhone}</strong></span>
+                                                        {isCompanyView && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span className="text-red-600 font-black">
+                                                                    <i className="fas fa-user-md mr-1"></i>
+                                                                    Prof: {(localDoctor?.professionals || []).find(p => p.id === app.professionalId)?.name || 'Clínica'}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                     
-                                                    {(app.isRescheduled || app.rescheduledFromId || app.rescheduled) && (
-                                                        <p className="text-[9px] font-black text-amber-700 uppercase mt-1 flex items-center gap-1">
+                                                    {((app.isRescheduled || app.rescheduledFromId || app.rescheduled) && app.rescheduledFromDate) && (
+                                                        <p className="text-[9px] font-black text-amber-700 uppercase mt-0.5 flex items-center gap-1">
                                                             <i className="fas fa-sync-alt text-amber-600"></i>
-                                                            Reagendamento {app.rescheduledFromDate ? `(Anterior: ${formatDateLong(app.rescheduledFromDate)} às ${app.rescheduledFromTime || ''})` : ''}
+                                                            Anterior: {formatDateLong(app.rescheduledFromDate)} às {app.rescheduledFromTime || ''}
                                                         </p>
                                                     )}
                                                     {app.document && (
-                                                        <p className="text-[8px] font-black text-emerald-600 uppercase mt-1">
-                                                            <i className="fas fa-file-alt mr-1"></i>
-                                                            Documento: {app.document.name}
+                                                        <p className="text-[9px] font-bold text-emerald-700 uppercase mt-0.5 flex items-center gap-1">
+                                                            <i className="fas fa-file-alt text-emerald-600"></i>
+                                                            Doc: <a href={app.document.data} download={app.document.name} target="_blank" rel="noopener noreferrer" className="underline font-black hover:text-emerald-900">{app.document.name}</a>
                                                         </p>
                                                     )}
                                                     {app.notes && (
-                                                        <p className="text-[9px] font-bold text-slate-600 uppercase mt-1">
-                                                            <i className="fas fa-sticky-note text-amber-500 mr-1"></i>
+                                                        <p className="text-[9px] font-bold text-slate-600 uppercase mt-0.5 flex items-center gap-1">
+                                                            <i className="fas fa-sticky-note text-amber-500"></i>
                                                             Notas: {app.notes}
-                                                        </p>
-                                                    )}
-                                                    {isCompanyView && (
-                                                        <p className="text-[8px] font-black text-red-600 uppercase mt-1">
-                                                            <i className="fas fa-user-md mr-1"></i>
-                                                            Profissional: {(localDoctor?.professionals || []).find(p => p.id === app.professionalId)?.name || 'Clínica'}
                                                         </p>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
+                                            <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap shrink-0">
                                                 {app.status === 'cancelled' ? (
                                                     <button 
                                                         onClick={() => handleStartReschedule(app)} 
-                                                        className="px-6 py-2 bg-red-600 text-white text-xs font-black uppercase hover:bg-red-700 transition-colors active-scale flex items-center gap-2 shadow-sm"
+                                                        className="px-3.5 py-1.5 bg-red-600 text-white text-[10px] font-black uppercase hover:bg-red-700 transition-colors active-scale flex items-center gap-1.5 shadow-sm"
                                                     >
                                                         <i className="fas fa-calendar-alt"></i> REAGENDAR
                                                     </button>
                                                 ) : app.status === 'completed' ? (
-                                                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                                                    <div className="flex items-center gap-2">
                                                         <button 
                                                             onClick={() => handleStartReschedule(app)} 
-                                                            className="px-6 py-2.5 bg-red-600 text-white text-xs font-black uppercase hover:bg-red-700 transition-all active-scale flex items-center gap-2 shadow-md"
+                                                            className="px-3.5 py-1.5 bg-red-600 text-white text-[10px] font-black uppercase hover:bg-red-700 transition-all active-scale flex items-center gap-1.5 shadow-sm"
                                                         >
                                                             <i className="fas fa-calendar-alt"></i> REAGENDAR
                                                         </button>
@@ -2582,7 +2589,7 @@
                                                                 await onUpdateAppointment(app.id, { status: 'completed' });
                                                                 showNotification('Consulta marcada como CONCLUÍDA!');
                                                             }}
-                                                            className="px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-1.5 shadow-sm active-scale"
+                                                            className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-1 shadow-sm active-scale"
                                                             title="Marcar consulta como concluída"
                                                         >
                                                             <i className="fas fa-check"></i> CONCLUÍDO
@@ -2611,12 +2618,14 @@
                                                             />
                                                             <label 
                                                                 htmlFor={`file-${app.id}`} 
-                                                                className="px-4 py-2 bg-slate-100 text-slate-900 text-xs font-black uppercase cursor-pointer hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"
+                                                                className="px-3 py-1.5 bg-slate-100 text-slate-900 text-[10px] font-black uppercase cursor-pointer hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 border border-slate-200"
                                                             >
                                                                 <i className="fas fa-paperclip"></i> {app.document ? 'ALTERAR DOC' : 'ANEXAR DOC'}
                                                             </label>
                                                         </div>
-                                                        <button onClick={() => onCancelAppointment(app.id)} className="px-6 py-2 border-2 border-red-600 text-red-600 text-xs font-black uppercase hover:bg-red-600 hover:text-white transition-colors active-scale">CANCELAR</button>
+                                                        <button onClick={() => onCancelAppointment(app.id)} className="px-3.5 py-1.5 border border-red-600 text-red-600 text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-colors active-scale">
+                                                            CANCELAR
+                                                        </button>
                                                     </>
                                                 )}
                                             </div>
@@ -2628,9 +2637,9 @@
                 };
 
                 return (
-                    <div className="space-y-12">
+                    <div className="space-y-6">
                         {activeApps.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 gap-3">
                                 {renderGrouped(activeApps)}
                             </div>
                         ) : (
@@ -2638,16 +2647,16 @@
                         )}
                         
                         {cancelledApps.length > 0 && (
-                            <div className="space-y-6 pt-6 border-t-2 border-slate-300">
+                            <div className="space-y-4 pt-4 border-t-2 border-slate-300">
                                 <div className="flex items-center gap-4">
                                     <div className="h-0.5 bg-slate-300 flex-grow"></div>
-                                    <span className="text-xs font-black text-red-600 uppercase tracking-[0.2em] bg-red-50 px-4 py-2 border border-red-200 flex items-center gap-2 shadow-sm">
+                                    <span className="text-xs font-black text-red-600 uppercase tracking-[0.2em] bg-red-50 px-3 py-1 border border-red-200 flex items-center gap-2 shadow-sm">
                                         <i className="fas fa-ban"></i>
                                         Agendamentos Cancelados ({cancelledApps.length})
                                     </span>
                                     <div className="h-0.5 bg-slate-300 flex-grow"></div>
                                 </div>
-                                <div className="grid grid-cols-1 gap-6 opacity-75">
+                                <div className="grid grid-cols-1 gap-3 opacity-75">
                                     {renderGrouped(cancelledApps)}
                                 </div>
                             </div>
@@ -4326,11 +4335,17 @@
             const [password, setPassword] = useState('');
             const [showShareModal, setShowShareModal] = useState(null); // null = none, 'main' = company, doctorId = specific doctor
             const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'suspended', 'pending'
-            const [adminTab, setAdminTab] = useState('partners'); // 'partners', 'attachments', 'chat'
+            const [adminTab, setAdminTab] = useState('partners'); // 'partners', 'reports', 'attachments', 'chat'
             const [selectedChatDoctorId, setSelectedChatDoctorId] = useState(null);
             const [adminChatInput, setAdminChatInput] = useState('');
             const [editingPasswords, setEditingPasswords] = useState({});
             const [showPasswords, setShowPasswords] = useState({});
+
+            // Report Filters State
+            const [reportDoctorFilter, setReportDoctorFilter] = useState('all');
+            const [reportCategoryFilter, setReportCategoryFilter] = useState('all');
+            const [reportPeriodFilter, setReportPeriodFilter] = useState('all');
+            const [reportSearchQuery, setReportSearchQuery] = useState('');
             
             const toggleStatus = (id, currentStatus) => { 
                 let newStatus = 'active';
@@ -4366,6 +4381,280 @@
             const doctorImageAttachments = (doctors || []).filter(doc => doc && doc.image && String(doc.image).startsWith('data:'));
             const totalAttachmentsCount = appointmentAttachments.length + doctorImageAttachments.length;
 
+            // --- COMPREHENSIVE AUDIT & MOVEMENTS AGGREGATION ---
+            const allMovements = useMemo(() => {
+                const list = [];
+
+                // 1. Cadastros de Médicos e Clínicas
+                (doctors || []).forEach(doc => {
+                    if (!doc) return;
+                    list.push({
+                        id: `doc-create-${doc.id}`,
+                        type: 'DOCTOR_SIGNUP',
+                        category: 'cadastros',
+                        typeLabel: 'CADASTRO DE PARCEIRO',
+                        icon: doc.isClinic ? 'fa-building' : 'fa-user-md',
+                        color: doc.isClinic ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white',
+                        badgeBg: doc.isClinic ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-blue-100 text-blue-800 border-blue-200',
+                        timestamp: doc.createdAt || '2026-01-01T00:00:00.000Z',
+                        actorName: doc.name,
+                        actorType: doc.isClinic ? 'Pessoa Jurídica (Clínica)' : 'Pessoa Física',
+                        doctorId: doc.id,
+                        doctorName: doc.name,
+                        details: {
+                            name: doc.name,
+                            type: doc.isClinic ? 'Pessoa Jurídica (Clínica)' : 'Pessoa Física',
+                            email: doc.email || 'Não informado',
+                            identifier: doc.isClinic ? `CNPJ: ${doc.cnpj || 'N/A'}` : `CRM: ${doc.crm || 'N/A'}`,
+                            city: doc.city ? `${doc.city} - ${doc.state || ''}` : 'Não informada',
+                            address: doc.address || '',
+                            specialties: Array.isArray(doc.specialties) ? doc.specialties.join(', ') : (doc.specialties || ''),
+                            status: doc.status || 'active',
+                            accessCode: doc.accessCode || 'NÃO DEFINIDA',
+                            price: doc.price ? `R$ ${doc.price}` : 'Não informado',
+                            professionalsCount: (doc.professionals || []).length
+                        }
+                    });
+
+                    // 2. Profissionais cadastrados dentro de Clínicas PJ
+                    (doc.professionals || []).forEach(prof => {
+                        list.push({
+                            id: `prof-create-${doc.id}-${prof.id}`,
+                            type: 'PROFESSIONAL_ADDED',
+                            category: 'cadastros',
+                            typeLabel: 'PROFISSIONAL VINCULADO',
+                            icon: 'fa-user-plus',
+                            color: 'bg-cyan-600 text-white',
+                            badgeBg: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+                            timestamp: prof.createdAt || doc.createdAt || '2026-01-01T00:00:00.000Z',
+                            actorName: prof.name,
+                            actorType: `Profissional da Clínica ${doc.name}`,
+                            doctorId: doc.id,
+                            doctorName: doc.name,
+                            professionalId: prof.id,
+                            professionalName: prof.name,
+                            details: {
+                                name: prof.name,
+                                clinicName: doc.name,
+                                specialties: Array.isArray(prof.specialties) ? prof.specialties.join(', ') : (prof.specialties || ''),
+                                status: prof.status || 'active',
+                                workDays: prof.workConfig?.daysOfWeek?.length ? `${prof.workConfig.daysOfWeek.length} dias configurados` : 'Padrão da clínica'
+                            }
+                        });
+                    });
+                });
+
+                // 3. Agendamentos (Novos, Concluídos, Reagendados, Cancelados)
+                (appointments || []).forEach(app => {
+                    if (!app) return;
+                    const targetDoctor = (doctors || []).find(d => d.id === app.doctorId);
+                    const profName = app.professionalName || (targetDoctor?.professionals || []).find(p => p.id === app.professionalId)?.name;
+                    
+                    let type = 'APPOINTMENT_CREATED';
+                    let typeLabel = 'NOVO AGENDAMENTO';
+                    let category = 'agendamentos';
+                    let icon = 'fa-calendar-plus';
+                    let color = 'bg-emerald-600 text-white';
+                    let badgeBg = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+
+                    if (app.status === 'cancelled') {
+                        type = 'APPOINTMENT_CANCELLED';
+                        typeLabel = 'AGENDAMENTO CANCELADO';
+                        category = 'cancelamentos';
+                        icon = 'fa-calendar-times';
+                        color = 'bg-red-600 text-white';
+                        badgeBg = 'bg-red-100 text-red-800 border-red-200';
+                    } else if (app.status === 'completed') {
+                        type = 'APPOINTMENT_COMPLETED';
+                        typeLabel = 'CONSULTA CONCLUÍDA';
+                        category = 'concluidos';
+                        icon = 'fa-check-double';
+                        color = 'bg-emerald-700 text-white';
+                        badgeBg = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+                    } else if (app.isRescheduled || app.rescheduledFromId || app.rescheduled || app.status === 'rescheduled') {
+                        type = 'APPOINTMENT_RESCHEDULED';
+                        typeLabel = 'REAGENDAMENTO';
+                        category = 'reagendamentos';
+                        icon = 'fa-sync-alt';
+                        color = 'bg-amber-600 text-white';
+                        badgeBg = 'bg-amber-100 text-amber-900 border-amber-300';
+                    }
+
+                    list.push({
+                        id: `app-${app.id}`,
+                        type,
+                        typeLabel,
+                        category,
+                        icon,
+                        color,
+                        badgeBg,
+                        timestamp: app.createdAt || (app.date ? `${app.date}T${app.time || '00:00'}:00.000Z` : '2026-01-01T00:00:00.000Z'),
+                        actorName: app.patientName,
+                        actorType: 'Paciente',
+                        doctorId: app.doctorId,
+                        doctorName: targetDoctor?.name || app.doctorName || 'Profissional',
+                        professionalId: app.professionalId,
+                        professionalName: profName,
+                        details: {
+                            id: app.id,
+                            patientName: app.patientName,
+                            patientCPF: app.patientCPF,
+                            patientPhone: app.patientPhone,
+                            patientEmail: app.patientEmail || '',
+                            date: app.date,
+                            time: app.time,
+                            duration: app.duration ? `${app.duration} minutos` : 'Padrão',
+                            status: app.status,
+                            price: app.price ? `R$ ${app.price}` : '',
+                            notes: app.notes || '',
+                            document: app.document ? app.document.name : null,
+                            documentData: app.document ? app.document.data : null,
+                            rescheduledFromDate: app.rescheduledFromDate,
+                            rescheduledFromTime: app.rescheduledFromTime,
+                            isExtendedTime: app.isExtendedTime
+                        }
+                    });
+
+                    // 4. Anexos enviados na consulta
+                    if (app.document && app.document.name) {
+                        list.push({
+                            id: `doc-attach-${app.id}`,
+                            type: 'ATTACHMENT_UPLOADED',
+                            typeLabel: 'DOCUMENTO ANEXADO',
+                            category: 'anexos',
+                            icon: 'fa-paperclip',
+                            color: 'bg-purple-600 text-white',
+                            badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
+                            timestamp: app.createdAt || (app.date ? `${app.date}T${app.time || '00:00'}:00.000Z` : '2026-01-01T00:00:00.000Z'),
+                            actorName: app.patientName,
+                            actorType: 'Paciente / Consulta',
+                            doctorId: app.doctorId,
+                            doctorName: targetDoctor?.name || app.doctorName || 'Profissional',
+                            professionalId: app.professionalId,
+                            professionalName: profName,
+                            details: {
+                                docName: app.document.name,
+                                docData: app.document.data,
+                                patientName: app.patientName,
+                                patientCPF: app.patientCPF,
+                                appointmentDate: app.date,
+                                appointmentTime: app.time
+                            }
+                        });
+                    }
+                });
+
+                // 5. Mensagens de Suporte / Chat
+                (supportMessages || []).forEach(msg => {
+                    if (!msg) return;
+                    const targetDoctor = (doctors || []).find(d => d.id === msg.doctorId);
+                    list.push({
+                        id: `msg-${msg.id}`,
+                        type: 'SUPPORT_MESSAGE',
+                        typeLabel: msg.senderType === 'admin' ? 'MENSAGEM DO ADMIN' : 'MENSAGEM DO PARCEIRO',
+                        category: 'suporte',
+                        icon: 'fa-comment-dots',
+                        color: msg.senderType === 'admin' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white',
+                        badgeBg: msg.senderType === 'admin' ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                        timestamp: msg.createdAt || '2026-01-01T00:00:00.000Z',
+                        actorName: msg.senderType === 'admin' ? 'Administrador' : (msg.doctorName || targetDoctor?.name || 'Profissional'),
+                        actorType: msg.senderType === 'admin' ? 'Suporte Admin' : 'Profissional / Clínica',
+                        doctorId: msg.doctorId,
+                        doctorName: targetDoctor?.name || msg.doctorName || 'Profissional',
+                        professionalId: msg.professionalId,
+                        details: {
+                            text: msg.text,
+                            senderType: msg.senderType,
+                            doctorName: targetDoctor?.name || msg.doctorName || 'Profissional'
+                        }
+                    });
+                });
+
+                return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            }, [doctors, appointments, supportMessages]);
+
+            // Filtered Movements for Report
+            const filteredMovements = useMemo(() => {
+                const now = new Date();
+                return allMovements.filter(m => {
+                    // Filter by Doctor / Partner
+                    if (reportDoctorFilter !== 'all' && m.doctorId !== reportDoctorFilter) {
+                        return false;
+                    }
+
+                    // Filter by Category
+                    if (reportCategoryFilter !== 'all' && m.category !== reportCategoryFilter) {
+                        return false;
+                    }
+
+                    // Filter by Period
+                    if (reportPeriodFilter === 'today') {
+                        const mDate = new Date(m.timestamp);
+                        const isToday = mDate.getFullYear() === now.getFullYear() &&
+                                        mDate.getMonth() === now.getMonth() &&
+                                        mDate.getDate() === now.getDate();
+                        if (!isToday) return false;
+                    } else if (reportPeriodFilter === '7days') {
+                        const mDate = new Date(m.timestamp);
+                        const diffTime = Math.abs(now.getTime() - mDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays > 7) return false;
+                    } else if (reportPeriodFilter === '30days') {
+                        const mDate = new Date(m.timestamp);
+                        const diffTime = Math.abs(now.getTime() - mDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays > 30) return false;
+                    }
+
+                    // Filter by search query
+                    if (reportSearchQuery.trim()) {
+                        const query = reportSearchQuery.toLowerCase();
+                        const matchActor = (m.actorName || '').toLowerCase().includes(query);
+                        const matchDoctor = (m.doctorName || '').toLowerCase().includes(query);
+                        const matchType = (m.typeLabel || '').toLowerCase().includes(query);
+                        const matchPatient = (m.details?.patientName || '').toLowerCase().includes(query);
+                        const matchCPF = (m.details?.patientCPF || '').toLowerCase().includes(query);
+                        const matchPhone = (m.details?.patientPhone || '').toLowerCase().includes(query);
+                        const matchNotes = (m.details?.notes || '').toLowerCase().includes(query);
+                        const matchText = (m.details?.text || '').toLowerCase().includes(query);
+                        const matchDocName = (m.details?.docName || '').toLowerCase().includes(query);
+
+                        if (!matchActor && !matchDoctor && !matchType && !matchPatient && !matchCPF && !matchPhone && !matchNotes && !matchText && !matchDocName) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+            }, [allMovements, reportDoctorFilter, reportCategoryFilter, reportPeriodFilter, reportSearchQuery]);
+
+            // CSV Export Handler
+            const handleExportCSV = () => {
+                const headers = ["Data e Hora", "Categoria", "Tipo de Acao", "Ator / Origem", "Profissional / Clinica", "Paciente", "CPF", "Telefone", "Status", "Detalhes"];
+                const rows = filteredMovements.map(m => [
+                    `"${m.timestamp ? new Date(m.timestamp).toLocaleString('pt-BR') : ''}"`,
+                    `"${m.category || ''}"`,
+                    `"${m.typeLabel || ''}"`,
+                    `"${m.actorName || ''} (${m.actorType || ''})"`,
+                    `"${m.doctorName || ''}"`,
+                    `"${m.details?.patientName || ''}"`,
+                    `"${m.details?.patientCPF || ''}"`,
+                    `"${m.details?.patientPhone || ''}"`,
+                    `"${m.details?.status || ''}"`,
+                    `"${(m.details?.notes || m.details?.identifier || m.details?.text || m.details?.specialties || m.details?.docName || '').replace(/"/g, '""')}"`
+                ]);
+
+                const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `relatorio_movimentacoes_${new Date().toISOString().slice(0, 10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showNotification("Relatório exportado em CSV com sucesso!");
+            };
+
             const handlePasswordSubmit = () => {
                 if (password === ADMIN_PASSWORD) {
                     onAuthenticate(true);
@@ -4387,6 +4676,9 @@
                 </div>
             );
 
+            // Calculate active doctor for detailed single-partner report card
+            const selectedPartnerForReport = (doctors || []).find(d => d.id === reportDoctorFilter);
+
             return (
                 <div className="lg:max-w-none mx-auto px-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-4">
@@ -4398,10 +4690,16 @@
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button 
+                                onClick={() => setAdminTab('reports')}
+                                className="px-5 py-3 bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest hover:bg-red-600 transition-all flex items-center gap-2 shadow-md"
+                            >
+                                <i className="fas fa-file-invoice"></i> RELATÓRIO GERAL
+                            </button>
                             <button 
                                 onClick={() => setShowShareModal('main')}
-                                className="px-6 py-3 bg-red-600 text-white font-black uppercase text-[10px] tracking-widest hover:bg-red-700 transition-all flex items-center gap-2 shadow-lg"
+                                className="px-5 py-3 bg-red-600 text-white font-black uppercase text-[10px] tracking-widest hover:bg-red-700 transition-all flex items-center gap-2 shadow-lg"
                             >
                                 <i className="fas fa-share-alt"></i> COMPARTILHAR SITE
                             </button>
@@ -4416,6 +4714,12 @@
                             className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'partners' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
                             <i className="fas fa-users-cog"></i> PROFISSIONAIS E SENHAS ({(doctors || []).length})
+                        </button>
+                        <button 
+                            onClick={() => setAdminTab('reports')}
+                            className={`px-6 py-3 font-black uppercase text-xs tracking-widest border-b-4 transition-all flex items-center gap-2 ${adminTab === 'reports' ? 'border-red-600 text-red-600 bg-red-50/50 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                        >
+                            <i className="fas fa-chart-line text-red-600"></i> RELATÓRIO ({allMovements.length})
                         </button>
                         <button 
                             onClick={() => setAdminTab('attachments')}
@@ -4849,6 +5153,451 @@
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ABA DE RELATÓRIOS E AUDITORIA COMPLETA */}
+                    {adminTab === 'reports' && (
+                        <div className="space-y-6">
+                            {/* Top Banner do Relatório */}
+                            <div className="bg-slate-900 text-white p-6 border border-slate-800 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded">AUDITORIA GERAL</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">• SISTEMA DE MOVIMENTAÇÕES</span>
+                                    </div>
+                                    <h3 className="text-xl font-black uppercase tracking-wide flex items-center gap-2">
+                                        <i className="fas fa-file-invoice text-red-500"></i> Relatório Geral de Ações & Movimentações
+                                    </h3>
+                                    <p className="text-xs text-slate-300 font-bold mt-1">
+                                        Consulte em tempo real tudo o que está acontecendo no sistema: cadastros, agendamentos, remarcações, cancelamentos, documentos e mensagens.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <button 
+                                        onClick={handleExportCSV}
+                                        className="px-4 py-2.5 bg-emerald-600 text-white font-black text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-md active-scale"
+                                        title="Exportar dados filtrados para planilha Excel/CSV"
+                                    >
+                                        <i className="fas fa-file-excel"></i> EXPORTAR CSV
+                                    </button>
+                                    <button 
+                                        onClick={() => window.print()}
+                                        className="px-4 py-2.5 bg-white text-slate-900 font-black text-xs uppercase tracking-wider hover:bg-slate-100 transition-all flex items-center gap-2 shadow-md active-scale"
+                                        title="Imprimir ou salvar como PDF"
+                                    >
+                                        <i className="fas fa-print"></i> IMPRIMIR / PDF
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* KPI Metrics Summary Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Ações</p>
+                                    <p className="text-2xl font-black text-slate-900 mt-1">{allMovements.length}</p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Registradas</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-blue-600 tracking-wider">Cadastros</p>
+                                    <p className="text-2xl font-black text-blue-700 mt-1">
+                                        {allMovements.filter(m => m.category === 'cadastros').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">PF e PJ</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-emerald-600 tracking-wider">Agendamentos</p>
+                                    <p className="text-2xl font-black text-emerald-700 mt-1">
+                                        {allMovements.filter(m => m.type === 'APPOINTMENT_CREATED').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Criados</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Concluídas</p>
+                                    <p className="text-2xl font-black text-emerald-800 mt-1">
+                                        {allMovements.filter(m => m.type === 'APPOINTMENT_COMPLETED').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Finalizadas</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-amber-600 tracking-wider">Reagendados</p>
+                                    <p className="text-2xl font-black text-amber-700 mt-1">
+                                        {allMovements.filter(m => m.category === 'reagendamentos').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Alterados</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-red-600 tracking-wider">Cancelados</p>
+                                    <p className="text-2xl font-black text-red-700 mt-1">
+                                        {allMovements.filter(m => m.type === 'APPOINTMENT_CANCELLED').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Cancelamentos</span>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 shadow-sm text-center">
+                                    <p className="text-[9px] font-black uppercase text-purple-600 tracking-wider">Documentos</p>
+                                    <p className="text-2xl font-black text-purple-700 mt-1">
+                                        {allMovements.filter(m => m.category === 'anexos').length}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase text-slate-400">Anexos</span>
+                                </div>
+                            </div>
+
+                            {/* Filtros e Barra de Pesquisa */}
+                            <div className="bg-white p-5 border border-slate-200 shadow-sm space-y-4">
+                                <div className="flex justify-between items-center pb-3 border-b border-slate-100 flex-wrap gap-2">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                                        <i className="fas fa-filter text-red-600"></i> Filtros de Auditoria
+                                    </h4>
+                                    {(reportDoctorFilter !== 'all' || reportCategoryFilter !== 'all' || reportPeriodFilter !== 'all' || reportSearchQuery) && (
+                                        <button 
+                                            onClick={() => {
+                                                setReportDoctorFilter('all');
+                                                setReportCategoryFilter('all');
+                                                setReportPeriodFilter('all');
+                                                setReportSearchQuery('');
+                                            }}
+                                            className="text-[10px] font-black uppercase text-red-600 hover:underline flex items-center gap-1"
+                                        >
+                                            <i className="fas fa-times-circle"></i> Limpar Filtros
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {/* 1. Selecionar Profissional / Clínica */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                            Profissional / Clínica ({doctors.length})
+                                        </label>
+                                        <select 
+                                            value={reportDoctorFilter} 
+                                            onChange={(e) => setReportDoctorFilter(e.target.value)}
+                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                        >
+                                            <option value="all">TODOS OS PROFISSIONAIS E CLÍNICAS</option>
+                                            {(doctors || []).map(doc => (
+                                                <option key={doc.id} value={doc.id}>
+                                                    {doc.isClinic ? '🏢 [PJ] ' : '👨‍⚕️ [PF] '} {doc.name} ({doc.isClinic ? `CNPJ: ${doc.cnpj || 'N/A'}` : `CRM: ${doc.crm || 'N/A'}`})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* 2. Categoria / Tipo de Ação */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                            Tipo de Movimentação
+                                        </label>
+                                        <select 
+                                            value={reportCategoryFilter} 
+                                            onChange={(e) => setReportCategoryFilter(e.target.value)}
+                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                        >
+                                            <option value="all">TODAS AS CATEGORIAS</option>
+                                            <option value="cadastros">👤 CADASTROS (PARCEIROS & EQUIPE)</option>
+                                            <option value="agendamentos">📅 NOVOS AGENDAMENTOS</option>
+                                            <option value="concluidos">✅ CONSULTAS CONCLUÍDAS</option>
+                                            <option value="reagendamentos">🔄 REAGENDAMENTOS</option>
+                                            <option value="cancelamentos">❌ CANCELAMENTOS</option>
+                                            <option value="anexos">📎 DOCUMENTOS & ANEXOS</option>
+                                            <option value="suporte">💬 MENSAGENS DE SUPORTE</option>
+                                        </select>
+                                    </div>
+
+                                    {/* 3. Período */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                            Período
+                                        </label>
+                                        <select 
+                                            value={reportPeriodFilter} 
+                                            onChange={(e) => setReportPeriodFilter(e.target.value)}
+                                            className="w-full p-2.5 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white"
+                                        >
+                                            <option value="all">TODO O HISTÓRICO</option>
+                                            <option value="today">HOJE</option>
+                                            <option value="7days">ÚLTIMOS 7 DIAS</option>
+                                            <option value="30days">ÚLTIMOS 30 DIAS</option>
+                                        </select>
+                                    </div>
+
+                                    {/* 4. Busca Textual */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                            Buscar por Paciente, CPF, Notas
+                                        </label>
+                                        <div className="relative">
+                                            <input 
+                                                type="text"
+                                                value={reportSearchQuery}
+                                                onChange={(e) => setReportSearchQuery(e.target.value)}
+                                                placeholder="NOME, CPF, NOTAS..."
+                                                className="w-full p-2.5 pl-8 border border-slate-200 font-bold text-xs outline-none focus:border-red-600 bg-white uppercase"
+                                            />
+                                            <i className="fas fa-search absolute left-3 top-3.5 text-slate-400 text-xs"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card Resumo do Parceiro Selecionado (Quando filtrado por um parceiro específico) */}
+                            {selectedPartnerForReport && (
+                                <div className="bg-slate-50 border-2 border-slate-900 p-5 shadow-sm">
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4 mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <img 
+                                                src={selectedPartnerForReport.image || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150'} 
+                                                alt={selectedPartnerForReport.name} 
+                                                className="w-16 h-16 object-cover border-2 border-slate-900 bg-white"
+                                            />
+                                            <div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h4 className="text-lg font-black uppercase text-slate-900">{selectedPartnerForReport.name}</h4>
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${selectedPartnerForReport.isClinic ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'}`}>
+                                                        {selectedPartnerForReport.isClinic ? 'Pessoa Jurídica (Clínica)' : 'Pessoa Física'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${selectedPartnerForReport.status === 'active' ? 'bg-emerald-100 text-emerald-800' : (selectedPartnerForReport.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800')}`}>
+                                                        STATUS: {selectedPartnerForReport.status || 'active'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-bold text-slate-700">
+                                                    <span>{selectedPartnerForReport.isClinic ? `CNPJ: ${selectedPartnerForReport.cnpj || 'N/A'}` : `CRM: ${selectedPartnerForReport.crm || 'N/A'}`}</span>
+                                                    <span>•</span>
+                                                    <span>E-mail: {selectedPartnerForReport.email || 'Não informado'}</span>
+                                                    <span>•</span>
+                                                    <span>Cidade: {selectedPartnerForReport.city || 'N/A'} - {selectedPartnerForReport.state || ''}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-3 border border-slate-200 flex items-center gap-3">
+                                            <div>
+                                                <p className="text-[8px] font-black uppercase text-slate-400">Senha do Painel</p>
+                                                <p className="text-xs font-mono font-black text-slate-900">{selectedPartnerForReport.accessCode || 'NÃO DEFINIDA'}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedPartnerForReport.accessCode || '');
+                                                    showNotification('Senha copiada!');
+                                                }}
+                                                className="p-2 bg-slate-100 hover:bg-red-600 hover:text-white text-slate-700 text-xs transition-all"
+                                                title="Copiar senha de acesso"
+                                            >
+                                                <i className="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Estatísticas Individuais do Parceiro */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+                                        <div className="bg-white p-2.5 border border-slate-200">
+                                            <p className="text-[8px] font-black uppercase text-slate-400">Total Agendamentos</p>
+                                            <p className="text-base font-black text-slate-900">
+                                                {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id).length}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white p-2.5 border border-slate-200">
+                                            <p className="text-[8px] font-black uppercase text-emerald-600">Concluídas</p>
+                                            <p className="text-base font-black text-emerald-700">
+                                                {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && a.status === 'completed').length}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white p-2.5 border border-slate-200">
+                                            <p className="text-[8px] font-black uppercase text-amber-600">Reagendadas</p>
+                                            <p className="text-base font-black text-amber-700">
+                                                {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && (a.isRescheduled || a.rescheduledFromId || a.status === 'rescheduled')).length}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white p-2.5 border border-slate-200">
+                                            <p className="text-[8px] font-black uppercase text-red-600">Canceladas</p>
+                                            <p className="text-base font-black text-red-700">
+                                                {(appointments || []).filter(a => a.doctorId === selectedPartnerForReport.id && a.status === 'cancelled').length}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white p-2.5 border border-slate-200">
+                                            <p className="text-[8px] font-black uppercase text-indigo-600">
+                                                {selectedPartnerForReport.isClinic ? 'Equipe Vinculada' : 'Preço Consulta'}
+                                            </p>
+                                            <p className="text-base font-black text-indigo-700">
+                                                {selectedPartnerForReport.isClinic ? `${(selectedPartnerForReport.professionals || []).length} Prof.` : `R$ ${selectedPartnerForReport.price || '0'}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lista Cronológica de Movimentações */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center px-1">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                                        Movimentações Encontradas ({filteredMovements.length})
+                                    </h4>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                        Ordenadas das mais recentes para as mais antigas
+                                    </span>
+                                </div>
+
+                                {filteredMovements.length === 0 ? (
+                                    <div className="bg-white border border-dashed border-slate-300 p-12 text-center space-y-3">
+                                        <i className="fas fa-search text-3xl text-slate-400"></i>
+                                        <p className="text-xs font-black uppercase text-slate-700">Nenhuma movimentação encontrada com os filtros selecionados.</p>
+                                        <button 
+                                            onClick={() => {
+                                                setReportDoctorFilter('all');
+                                                setReportCategoryFilter('all');
+                                                setReportPeriodFilter('all');
+                                                setReportSearchQuery('');
+                                            }}
+                                            className="px-4 py-2 bg-slate-900 text-white font-black text-[10px] uppercase tracking-wider hover:bg-red-600 transition-all"
+                                        >
+                                            REDEFINIR TODOS OS FILTROS
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {filteredMovements.map((mov) => {
+                                            const formattedDate = mov.timestamp ? new Date(mov.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Data não registrada';
+                                            const formattedTime = mov.timestamp ? new Date(mov.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+                                            return (
+                                                <div 
+                                                    key={mov.id} 
+                                                    className="bg-white border border-slate-200 p-4 shadow-sm hover:border-slate-400 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                                                >
+                                                    {/* Lado Esquerdo: Ícone + Tipo + Detalhes Principais */}
+                                                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                        <div className={`w-10 h-10 rounded shrink-0 flex items-center justify-center text-sm ${mov.color} shadow-sm`}>
+                                                            <i className={`fas ${mov.icon}`}></i>
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ${mov.badgeBg}`}>
+                                                                    {mov.typeLabel}
+                                                                </span>
+                                                                <span className="text-[10px] font-black text-slate-500 uppercase">
+                                                                    <i className="fas fa-clock mr-1"></i> {formattedDate} {formattedTime && `às ${formattedTime}`}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Título da Ação e Ator */}
+                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-black text-slate-900 uppercase">
+                                                                <span>{mov.actorName}</span>
+                                                                <span className="text-slate-400 font-normal">({mov.actorType})</span>
+                                                                {mov.doctorName && mov.doctorName !== mov.actorName && (
+                                                                    <>
+                                                                        <span className="text-slate-300">•</span>
+                                                                        <span className="text-red-600 font-bold">
+                                                                            <i className="fas fa-clinic-medical mr-1"></i> {mov.doctorName}
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                                {mov.professionalName && (
+                                                                    <>
+                                                                        <span className="text-slate-300">•</span>
+                                                                        <span className="text-cyan-700 font-bold">
+                                                                            <i className="fas fa-user-md mr-1"></i> Prof: {mov.professionalName}
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Detalhes Específicos por Tipo */}
+                                                            <div className="mt-1 text-[11px] font-bold text-slate-600 space-y-0.5">
+                                                                {/* Agendamentos */}
+                                                                {mov.details?.patientCPF && (
+                                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-700">
+                                                                        <span>CPF: <strong className="text-slate-900">{mov.details.patientCPF}</strong></span>
+                                                                        <span>•</span>
+                                                                        <span>Tel: <strong className="text-slate-900">{mov.details.patientPhone || 'N/A'}</strong></span>
+                                                                        {mov.details.date && (
+                                                                            <>
+                                                                                <span>•</span>
+                                                                                <span>Consulta: <strong className="text-slate-900">{formatDateLong(mov.details.date)} às {mov.details.time || ''}</strong></span>
+                                                                            </>
+                                                                        )}
+                                                                        {mov.details.duration && (
+                                                                            <span>({mov.details.duration})</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Informação de Reagendamento */}
+                                                                {mov.details?.rescheduledFromDate && (
+                                                                    <p className="text-amber-700 font-black text-[10px] uppercase">
+                                                                        <i className="fas fa-history mr-1"></i>
+                                                                        Data Anterior: {formatDateLong(mov.details.rescheduledFromDate)} às {mov.details.rescheduledFromTime || ''}
+                                                                    </p>
+                                                                )}
+
+                                                                {/* Cadastros de Parceiros */}
+                                                                {mov.details?.identifier && (
+                                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-700">
+                                                                        <span><strong>{mov.details.identifier}</strong></span>
+                                                                        <span>•</span>
+                                                                        <span>E-mail: {mov.details.email}</span>
+                                                                        <span>•</span>
+                                                                        <span>{mov.details.city}</span>
+                                                                        <span>•</span>
+                                                                        <span>Senha: <strong className="text-slate-900 font-mono">{mov.details.accessCode}</strong></span>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Anexos */}
+                                                                {mov.details?.docName && (
+                                                                    <p className="text-purple-700 font-black text-[10px] uppercase flex items-center gap-1">
+                                                                        <i className="fas fa-file-download text-purple-600"></i>
+                                                                        Arquivo: <a href={mov.details.docData} download={mov.details.docName} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900">{mov.details.docName}</a>
+                                                                    </p>
+                                                                )}
+
+                                                                {/* Mensagens de Suporte */}
+                                                                {mov.details?.text && (
+                                                                    <p className="text-slate-800 bg-slate-50 p-2 border border-slate-200 mt-1 italic text-[11px]">
+                                                                        "{mov.details.text}"
+                                                                    </p>
+                                                                )}
+
+                                                                {/* Notas Gerais */}
+                                                                {mov.details?.notes && (
+                                                                    <p className="text-slate-500 text-[10px] uppercase">
+                                                                        <i className="fas fa-sticky-note text-amber-500 mr-1"></i>
+                                                                        Notas: {mov.details.notes}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Lado Direito: Ações Rápidas */}
+                                                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                                        {mov.doctorId && (
+                                                            <button 
+                                                                onClick={() => setReportDoctorFilter(mov.doctorId)}
+                                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[10px] font-black uppercase transition-all border border-slate-200"
+                                                                title="Filtrar todas as ações deste parceiro"
+                                                            >
+                                                                <i className="fas fa-user mr-1"></i> VER PERFIL
+                                                            </button>
+                                                        )}
+                                                        {mov.details?.docData && (
+                                                            <a 
+                                                                href={mov.details.docData} 
+                                                                download={mov.details.docName || 'documento'} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white text-[10px] font-black uppercase transition-all border border-purple-200 flex items-center gap-1"
+                                                            >
+                                                                <i className="fas fa-download"></i> BAIXAR DOC
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
