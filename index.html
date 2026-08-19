@@ -248,6 +248,43 @@
         }
 
         // --- UTILS ---
+        const formatDateLong = (dateStr) => {
+            if (!dateStr) return '';
+            try {
+                if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [y, m, d] = dateStr.split('-').map(Number);
+                    const dt = new Date(y, m - 1, d);
+                    const daysOfWeek = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+                    const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+                    return `${daysOfWeek[dt.getDay()]}, ${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
+                }
+                const dt = new Date(dateStr);
+                if (!isNaN(dt.getTime())) {
+                    return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                }
+                return String(dateStr);
+            } catch (e) {
+                return String(dateStr);
+            }
+        };
+
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '';
+            try {
+                if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [y, m, d] = dateStr.split('-');
+                    return `${d}/${m}/${y}`;
+                }
+                const dt = new Date(dateStr);
+                if (!isNaN(dt.getTime())) {
+                    return dt.toLocaleDateString('pt-BR');
+                }
+                return String(dateStr);
+            } catch (e) {
+                return String(dateStr);
+            }
+        };
+
         const timeToMin = (t) => {
             const [h, m] = t.split(':').map(Number);
             return h * 60 + m;
