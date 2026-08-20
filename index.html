@@ -115,7 +115,7 @@
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
+    <script type="text/babel" data-type="module" data-compact="true">
         import { initializeApp } from "firebase/app";
         import { 
             getFirestore, 
@@ -3753,22 +3753,38 @@
                                         ) : (
                                             mySupportMessages.map(msg => {
                                                 const isProf = msg.senderType === 'professional';
+                                                const isBroadcast = !!msg.isBroadcast;
                                                 return (
                                                     <div key={msg.id} className={`flex flex-col ${isProf ? 'items-end' : 'items-start'}`}>
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[9px] font-black uppercase text-slate-500">
-                                                                {isProf ? 'Você' : 'Suporte Administrativo'}
+                                                            <span className={`text-[9px] font-black uppercase flex items-center gap-1 ${isBroadcast ? 'text-red-600' : 'text-slate-500'}`}>
+                                                                {isBroadcast ? (
+                                                                    <>
+                                                                        <i className="fas fa-bullhorn text-red-600 animate-pulse"></i>
+                                                                        <span>Comunicado do Sistema</span>
+                                                                    </>
+                                                                ) : (
+                                                                    isProf ? 'Você' : 'Suporte Administrativo'
+                                                                )}
                                                             </span>
                                                             <span className="text-[8px] font-medium text-slate-400">
-                                                                {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                                {msg.createdAt ? new Date(msg.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                                             </span>
                                                         </div>
                                                         <div className={`max-w-md p-4 rounded-xl text-xs font-bold leading-relaxed shadow-sm ${
                                                             isProf 
                                                                 ? 'bg-red-600 text-white rounded-tr-none' 
+                                                                : isBroadcast
+                                                                ? 'bg-gradient-to-r from-red-600 to-rose-700 text-white border-2 border-red-500 rounded-tl-none shadow-md'
                                                                 : 'bg-white text-slate-900 border border-slate-200 rounded-tl-none'
                                                         }`}>
-                                                            {msg.text}
+                                                            {isBroadcast && (
+                                                                <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-white/25 text-[9px] font-black uppercase text-amber-300 tracking-wider">
+                                                                    <i className="fas fa-bullhorn"></i>
+                                                                    <span>{msg.broadcastTitle || 'COMUNICADO OFICIAL'}</span>
+                                                                </div>
+                                                            )}
+                                                            <p className="whitespace-pre-wrap">{msg.text}</p>
                                                         </div>
                                                     </div>
                                                 );
@@ -4794,15 +4810,23 @@
             );
         };
 
-        const AdminDashboard = ({ doctors, setDoctors, onDeleteDoctor, appointments = [], onUpdateAppointment, supportMessages = [], onSendSupportMessage, isAuthenticated, onAuthenticate, showNotification, showConfirmation }) => {
+        const AdminDashboard = ({ doctors, setDoctors, onDeleteDoctor, appointments = [], onUpdateAppointment, supportMessages = [], onSendSupportMessage, onSendBroadcastMessage, isAuthenticated, onAuthenticate, showNotification, showConfirmation }) => {
             const [password, setPassword] = useState('');
             const [showShareModal, setShowShareModal] = useState(null); // null = none, 'main' = company, doctorId = specific doctor
+            const [showBroadcastModal, setShowBroadcastModal] = useState(false);
             const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'suspended', 'pending'
-            const [adminTab, setAdminTab] = useState('partners'); // 'partners', 'reports', 'attachments', 'chat'
+            const [adminTab, setAdminTab] = useState('partners'); // 'partners', 'reports', 'attachments', 'chat', 'broadcast'
             const [selectedChatDoctorId, setSelectedChatDoctorId] = useState(null);
             const [adminChatInput, setAdminChatInput] = useState('');
             const [editingPasswords, setEditingPasswords] = useState({});
             const [showPasswords, setShowPasswords] = useState({});
+
+            // Broadcast Mass Message State
+            const [broadcastTitle, setBroadcastTitle] = useState('COMUNICADO OFICIAL');
+            const [broadcastText, setBroadcastText] = useState('');
+            const [broadcastTarget, setBroadcastTarget] = useState('all'); // 'all', 'active', 'pending', 'suspended', 'clinic', 'pf'
+            const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+            const [broadcastSearchRecipient, setBroadcastSearchRecipient] = useState('');
 
             // Report Filters State
             const [reportDoctorFilter, setReportDoctorFilter] = useState('all');
@@ -4838,6 +4862,108 @@
                 if (statusFilter === 'all') return true;
                 return doc.status === statusFilter;
             });
+
+            // Filter broadcast target recipients
+            const getBroadcastRecipients = (target) => {
+                return (doctors || []).filter(doc => {
+                    if (!doc) return false;
+                    if (target === 'all') return true;
+                    if (target === 'active') return doc.status === 'active';
+                    if (target === 'pending') return doc.status === 'pending';
+                    if (target === 'suspended') return doc.status === 'suspended';
+                    if (target === 'clinic') return doc.isClinic;
+                    if (target === 'pf') return !doc.isClinic;
+                    return true;
+                });
+            };
+
+            const broadcastRecipients = useMemo(() => getBroadcastRecipients(broadcastTarget), [doctors, broadcastTarget]);
+
+            const filteredBroadcastRecipientsPreview = useMemo(() => {
+                if (!broadcastSearchRecipient.trim()) return broadcastRecipients;
+                const q = broadcastSearchRecipient.toLowerCase();
+                return broadcastRecipients.filter(d => 
+                    (d.name || '').toLowerCase().includes(q) || 
+                    (d.email || '').toLowerCase().includes(q) || 
+                    (d.crm || '').toLowerCase().includes(q) || 
+                    (d.cnpj || '').toLowerCase().includes(q) ||
+                    (d.city || '').toLowerCase().includes(q)
+                );
+            }, [broadcastRecipients, broadcastSearchRecipient]);
+
+            // Sent broadcasts history
+            const sentBroadcastsHistory = useMemo(() => {
+                const broadcastMsgs = (supportMessages || []).filter(m => m && m.isBroadcast);
+                const groups = {};
+                broadcastMsgs.forEach(m => {
+                    const timeKey = m.createdAt ? m.createdAt.slice(0, 16) : 'unknown';
+                    const key = `${m.broadcastTitle || 'COMUNICADO'}-${m.text}-${timeKey}`;
+                    if (!groups[key]) {
+                        groups[key] = {
+                            id: m.id,
+                            title: m.broadcastTitle || 'COMUNICADO OFICIAL',
+                            text: m.text,
+                            createdAt: m.createdAt,
+                            recipientsCount: 0,
+                            recipientNames: []
+                        };
+                    }
+                    groups[key].recipientsCount += 1;
+                    if (m.doctorName && !groups[key].recipientNames.includes(m.doctorName)) {
+                        groups[key].recipientNames.push(m.doctorName);
+                    }
+                });
+                return Object.values(groups).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            }, [supportMessages]);
+
+            const handleExecuteBroadcast = async () => {
+                if (!broadcastText.trim()) {
+                    showNotification("Por favor, digite o conteúdo da mensagem antes de disparar.", "error");
+                    return;
+                }
+                if (broadcastRecipients.length === 0) {
+                    showNotification("Nenhum profissional ou clínica encontrado para o público-alvo selecionado.", "error");
+                    return;
+                }
+
+                const titleToSend = broadcastTitle.trim() || 'COMUNICADO OFICIAL';
+                const textToSend = broadcastText.trim();
+                const totalCount = broadcastRecipients.length;
+
+                showConfirmation(`Confirma o disparo desta mensagem para TODOS os ${totalCount} cadastrado(s) selecionados?`, async () => {
+                    setIsSendingBroadcast(true);
+                    try {
+                        if (onSendBroadcastMessage) {
+                            await onSendBroadcastMessage({
+                                targetDoctorIds: broadcastRecipients.map(d => d.id),
+                                broadcastTitle: titleToSend,
+                                text: textToSend,
+                                senderType: 'admin'
+                            });
+                        } else if (onSendSupportMessage) {
+                            const promises = broadcastRecipients.map(d => 
+                                onSendSupportMessage({
+                                    doctorId: d.id,
+                                    doctorName: d.name,
+                                    senderType: 'admin',
+                                    isBroadcast: true,
+                                    broadcastTitle: titleToSend,
+                                    text: textToSend
+                                })
+                            );
+                            await Promise.all(promises);
+                        }
+                        showNotification(`Mensagem disparada com sucesso para todos os ${totalCount} cadastrados!`);
+                        setBroadcastText('');
+                        setShowBroadcastModal(false);
+                    } catch (err) {
+                        console.error("Erro ao disparar mensagem:", err);
+                        showNotification("Erro ao disparar mensagens. Tente novamente.", "error");
+                    } finally {
+                        setIsSendingBroadcast(false);
+                    }
+                });
+            };
 
             // Gather all attachments from appointments and doctors
             const appointmentAttachments = (appointments || []).filter(app => app && app.document && app.document.name);
@@ -5007,26 +5133,28 @@
                     }
                 });
 
-                // 5. Mensagens de Suporte / Chat
+                // 5. Mensagens de Suporte / Chat / Comunicados
                 (supportMessages || []).forEach(msg => {
                     if (!msg) return;
                     const targetDoctor = (doctors || []).find(d => d.id === msg.doctorId);
+                    const isBroadcast = !!msg.isBroadcast;
                     list.push({
                         id: `msg-${msg.id}`,
-                        type: 'SUPPORT_MESSAGE',
-                        typeLabel: msg.senderType === 'admin' ? 'MENSAGEM DO ADMIN' : 'MENSAGEM DO PARCEIRO',
-                        category: 'suporte',
-                        icon: 'fa-comment-dots',
-                        color: msg.senderType === 'admin' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white',
-                        badgeBg: msg.senderType === 'admin' ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                        type: isBroadcast ? 'BROADCAST_MESSAGE' : 'SUPPORT_MESSAGE',
+                        typeLabel: isBroadcast ? 'COMUNICADO GERAL DISPARADO' : (msg.senderType === 'admin' ? 'MENSAGEM DO ADMIN' : 'MENSAGEM DO PARCEIRO'),
+                        category: isBroadcast ? 'comunicados' : 'suporte',
+                        icon: isBroadcast ? 'fa-bullhorn' : 'fa-comment-dots',
+                        color: isBroadcast ? 'bg-red-600 text-white' : (msg.senderType === 'admin' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white'),
+                        badgeBg: isBroadcast ? 'bg-red-100 text-red-800 border-red-200' : (msg.senderType === 'admin' ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-emerald-100 text-emerald-800 border-emerald-200'),
                         timestamp: msg.createdAt || '2026-01-01T00:00:00.000Z',
                         actorName: msg.senderType === 'admin' ? 'Administrador' : (msg.doctorName || targetDoctor?.name || 'Profissional'),
-                        actorType: msg.senderType === 'admin' ? 'Suporte Admin' : 'Profissional / Clínica',
+                        actorType: isBroadcast ? 'Disparo em Massa (Admin)' : (msg.senderType === 'admin' ? 'Suporte Admin' : 'Profissional / Clínica'),
                         doctorId: msg.doctorId,
                         doctorName: targetDoctor?.name || msg.doctorName || 'Profissional',
                         professionalId: msg.professionalId,
                         details: {
                             text: msg.text,
+                            title: msg.broadcastTitle,
                             senderType: msg.senderType,
                             doctorName: targetDoctor?.name || msg.doctorName || 'Profissional'
                         }
@@ -5155,6 +5283,13 @@
                         </div>
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
                             <button 
+                                onClick={() => setShowBroadcastModal(true)}
+                                className="px-3.5 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:from-red-700 hover:to-rose-700 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md active-scale border border-red-500"
+                                title="Disparar mensagem para todos os cadastrados"
+                            >
+                                <i className="fas fa-bullhorn text-amber-300 animate-pulse"></i> DISPARAR MENSAGEM
+                            </button>
+                            <button 
                                 onClick={() => setAdminTab('reports')}
                                 className="px-3.5 py-2 sm:px-5 sm:py-2.5 bg-slate-900 text-white font-black uppercase text-[9px] sm:text-[10px] tracking-wider hover:bg-red-600 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md active-scale"
                             >
@@ -5177,6 +5312,12 @@
                             className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'partners' ? 'border-red-600 text-red-600 bg-red-50/50' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
                         >
                             <i className="fas fa-users-cog"></i> PROFISSIONAIS E SENHAS ({(doctors || []).length})
+                        </button>
+                        <button 
+                            onClick={() => setAdminTab('broadcast')}
+                            className={`px-3.5 py-2 sm:px-5 sm:py-2.5 font-black uppercase text-[10px] sm:text-xs tracking-wider border-b-4 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${adminTab === 'broadcast' ? 'border-red-600 text-red-600 bg-red-50/50 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+                        >
+                            <i className="fas fa-bullhorn text-red-600"></i> DISPARO DE MENSAGENS ({broadcastRecipients.length})
                         </button>
                         <button 
                             onClick={() => setAdminTab('reports')}
@@ -5446,14 +5587,22 @@
 
                     {adminTab === 'chat' && (
                         <div className="space-y-6">
-                            <div className="bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">
+                            <div className="bg-slate-50 border border-slate-200 p-4 flex items-center justify-between flex-wrap gap-3">
                                 <span className="text-xs font-black uppercase text-slate-700 flex items-center gap-2">
                                     <i className="fas fa-headset text-red-600"></i>
                                     Central de Atendimento e Suporte em Tempo Real
                                 </span>
-                                <span className="text-[10px] font-black uppercase bg-slate-900 text-white px-3 py-1">
-                                    {(supportMessages || []).length} MENSAGEM{(supportMessages || []).length === 1 ? '' : 'NS'} NO TOTAL
-                                </span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button 
+                                        onClick={() => setAdminTab('broadcast')}
+                                        className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[9px] sm:text-[10px] uppercase tracking-wider hover:from-red-700 hover:to-rose-700 transition-all flex items-center gap-1.5 shadow-sm active-scale border border-red-500"
+                                    >
+                                        <i className="fas fa-bullhorn text-amber-300 animate-pulse"></i> DISPARAR MENSAGEM GERAL
+                                    </button>
+                                    <span className="text-[10px] font-black uppercase bg-slate-900 text-white px-3 py-1.5">
+                                        {(supportMessages || []).length} MENSAGEM{(supportMessages || []).length === 1 ? '' : 'NS'}
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[550px] bg-white border border-slate-200 overflow-hidden shadow-sm">
@@ -5526,22 +5675,38 @@
                                                     ) : (
                                                         activeMsgs.map(msg => {
                                                             const isAdmin = msg.senderType === 'admin';
+                                                            const isBroadcast = !!msg.isBroadcast;
                                                             return (
                                                                 <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
                                                                     <div className="flex items-center gap-2 mb-1">
-                                                                        <span className="text-[9px] font-black uppercase text-slate-500">
-                                                                            {isAdmin ? 'Você (Suporte Admin)' : (msg.doctorName || activeDoc.name)}
+                                                                        <span className={`text-[9px] font-black uppercase flex items-center gap-1 ${isBroadcast ? 'text-red-600' : 'text-slate-500'}`}>
+                                                                            {isBroadcast ? (
+                                                                                <>
+                                                                                    <i className="fas fa-bullhorn text-red-600 animate-pulse"></i>
+                                                                                    <span>Comunicado Geral Disparado</span>
+                                                                                </>
+                                                                            ) : (
+                                                                                isAdmin ? 'Você (Suporte Admin)' : (msg.doctorName || activeDoc.name)
+                                                                            )}
                                                                         </span>
                                                                         <span className="text-[8px] font-medium text-slate-400">
-                                                                            {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                                            {msg.createdAt ? new Date(msg.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                                                         </span>
                                                                     </div>
                                                                     <div className={`max-w-md p-4 rounded-xl text-xs font-bold leading-relaxed shadow-sm ${
-                                                                        isAdmin 
+                                                                        isBroadcast
+                                                                            ? 'bg-red-950 text-white border-2 border-red-600 rounded-tr-none'
+                                                                            : isAdmin 
                                                                             ? 'bg-slate-900 text-white rounded-tr-none' 
                                                                             : 'bg-white text-slate-900 border border-slate-200 rounded-tl-none'
                                                                     }`}>
-                                                                        {msg.text}
+                                                                        {isBroadcast && (
+                                                                            <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-red-800 text-[9px] font-black uppercase text-amber-400 tracking-wider">
+                                                                                <i className="fas fa-bullhorn"></i>
+                                                                                <span>{msg.broadcastTitle || 'COMUNICADO GERAL'}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        <p className="whitespace-pre-wrap">{msg.text}</p>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -5616,6 +5781,394 @@
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ABA DE DISPARO DE MENSAGENS EM MASSA (BROADCAST) */}
+                    {adminTab === 'broadcast' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Top Banner */}
+                            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-red-950 text-white p-4 sm:p-6 border border-red-900/50 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2.5 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded flex items-center gap-1.5">
+                                            <i className="fas fa-bullhorn text-amber-300 animate-pulse"></i> TRANSMISSÃO OFICIAL
+                                        </span>
+                                        <span className="text-[10px] font-bold text-red-300 uppercase">• COMUNICADO GERAL</span>
+                                    </div>
+                                    <h3 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2">
+                                        Disparo de Mensagens para Cadastrados
+                                    </h3>
+                                    <p className="text-[11px] sm:text-xs text-slate-300 font-medium max-w-2xl">
+                                        Dispare comunicados, notificações de atualizações, avisos de manutenção ou orientações administrativas diretamente para a central de suporte de todos os parceiros cadastrados.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-black/40 border border-white/10 p-3 rounded-lg text-center shrink-0">
+                                        <p className="text-[8px] font-black uppercase text-slate-400">Total Cadastrados</p>
+                                        <p className="text-xl sm:text-2xl font-black text-amber-400">{(doctors || []).length}</p>
+                                        <span className="text-[8px] font-bold uppercase text-slate-400">Médicos & Clínicas</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Audience KPI Quick Selection Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('all')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'all' ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-red-500' : 'bg-white text-slate-900 border-slate-200 hover:border-slate-400'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Todos</p>
+                                        <i className="fas fa-users text-xs"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{(doctors || []).length}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Público Geral</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('active')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'active' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400' : 'bg-white text-slate-900 border-slate-200 hover:border-emerald-300'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Somente Ativos</p>
+                                        <i className="fas fa-check-circle text-xs text-emerald-400"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{activeCount}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Liberados</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('pending')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'pending' ? 'bg-amber-500 text-white border-amber-500 shadow-md ring-2 ring-amber-300' : 'bg-white text-slate-900 border-slate-200 hover:border-amber-300'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Pendentes</p>
+                                        <i className="fas fa-clock text-xs text-amber-400"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{pendingCount}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Aguardando</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('suspended')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'suspended' ? 'bg-slate-700 text-white border-slate-700 shadow-md ring-2 ring-slate-400' : 'bg-white text-slate-900 border-slate-200 hover:border-slate-400'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Suspensos</p>
+                                        <i className="fas fa-ban text-xs text-slate-400"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{suspendedCount}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Inativos</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('clinic')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'clinic' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300' : 'bg-white text-slate-900 border-slate-200 hover:border-indigo-300'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Clínicas (PJ)</p>
+                                        <i className="fas fa-building text-xs text-indigo-300"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{(doctors || []).filter(d => d.isClinic).length}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Pessoa Jurídica</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcastTarget('pf')}
+                                    className={`p-3 border text-left transition-all ${broadcastTarget === 'pf' ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-300' : 'bg-white text-slate-900 border-slate-200 hover:border-blue-300'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[8px] font-black uppercase tracking-wider opacity-75">Profissionais (PF)</p>
+                                        <i className="fas fa-user-md text-xs text-blue-300"></i>
+                                    </div>
+                                    <p className="text-lg font-black mt-1">{(doctors || []).filter(d => !d.isClinic).length}</p>
+                                    <span className="text-[8px] font-bold uppercase block mt-0.5 text-slate-400">Pessoa Física</span>
+                                </button>
+                            </div>
+
+                            {/* Main Dispatch & Preview Section */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                {/* Form Column (7 cols) */}
+                                <div className="lg:col-span-7 bg-white border border-slate-200 p-4 sm:p-6 shadow-sm space-y-5">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+                                        <h4 className="font-black uppercase text-xs text-slate-900 flex items-center gap-2">
+                                            <i className="fas fa-envelope-open-text text-red-600"></i>
+                                            Composição do Disparo
+                                        </h4>
+                                        <span className="text-[9px] font-black uppercase px-2.5 py-1 bg-red-100 text-red-800 rounded">
+                                            {broadcastRecipients.length} DESTINATÁRIO{broadcastRecipients.length === 1 ? '' : 'S'} ALVO
+                                        </span>
+                                    </div>
+
+                                    {/* Modelos Prontos (Templates) */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase text-slate-600 flex items-center gap-1.5">
+                                            <i className="fas fa-magic text-amber-500"></i> Modelos Rápidos de Mensagem:
+                                        </label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {[
+                                                {
+                                                    label: "📢 Boas-vindas",
+                                                    title: "BOAS-VINDAS AO MEDAGENDAR",
+                                                    text: "Olá parceiro(a)! Seu cadastro no MedAgendar está ativo. Configure seus horários e valores na aba 'HORÁRIOS' do seu painel para disponibilizar consultas aos pacientes no site."
+                                                },
+                                                {
+                                                    label: "⏰ Atualização de Horários",
+                                                    title: "LEMBRETE: ATUALIZAÇÃO DA GRADE DE HORÁRIOS",
+                                                    text: "Prezado(a) profissional, solicitamos que revise sua grade de horários disponíveis no painel para manter suas vagas de consulta sempre sincronizadas."
+                                                },
+                                                {
+                                                    label: "🛠️ Manutenção",
+                                                    title: "AVISO DE MANUTENÇÃO PROGRAMADA",
+                                                    text: "Informamos que a plataforma passará por melhorias e atualizações técnicas preventivas hoje às 23h. Suas consultas agendadas continuam seguras e operando normalmente."
+                                                },
+                                                {
+                                                    label: "🚀 Novos Recursos",
+                                                    title: "NOVIDADES NO SEU PAINEL PROFISSIONAL",
+                                                    text: "Novas funcionalidades acabaram de ser liberadas no seu painel! Você agora tem acesso a um calendário inteligente para gestão ágil de consultas e novos relatórios."
+                                                },
+                                                {
+                                                    label: "📋 Validação de Dados",
+                                                    title: "COMUNICADO: VALIDAÇÃO DE DADOS E REGISTRO",
+                                                    text: "Prezado(a) parceiro(a), por favor verifique seus dados profissionais (CRM/CNPJ) e foto de perfil no painel. Em caso de dúvidas, utilize o chat de suporte para falar conosco."
+                                                }
+                                            ].map((tpl, i) => (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBroadcastTitle(tpl.title);
+                                                        setBroadcastText(tpl.text);
+                                                        showNotification(`Modelo "${tpl.label}" carregado!`);
+                                                    }}
+                                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[9px] font-black uppercase tracking-wider border border-slate-200 transition-all rounded"
+                                                >
+                                                    {tpl.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Título do Comunicado */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase text-slate-900 flex justify-between">
+                                            <span>Título / Assunto da Mensagem</span>
+                                            <span className="text-slate-400 font-normal">{broadcastTitle.length} caracteres</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={broadcastTitle}
+                                            onChange={(e) => setBroadcastTitle(e.target.value.toUpperCase())}
+                                            placeholder="EX: COMUNICADO OFICIAL, ATUALIZAÇÃO IMPORTANTE..."
+                                            className="w-full p-3 border border-slate-200 font-black text-xs uppercase outline-none focus:border-red-600 tracking-wider bg-slate-50"
+                                        />
+                                    </div>
+
+                                    {/* Texto da Mensagem */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[9px] font-black uppercase text-slate-900">
+                                                Conteúdo da Mensagem para Todos
+                                            </label>
+                                            <span className="text-[9px] font-black text-slate-400">{broadcastText.length} caracteres</span>
+                                        </div>
+                                        <textarea
+                                            rows={6}
+                                            value={broadcastText}
+                                            onChange={(e) => setBroadcastText(e.target.value)}
+                                            placeholder="Escreva aqui a mensagem completa que será enviada para todos os profissionais e clínicas cadastrados..."
+                                            className="w-full p-3.5 border border-slate-200 font-medium text-xs leading-relaxed outline-none focus:border-red-600 bg-slate-50 resize-y"
+                                        />
+                                    </div>
+
+                                    {/* Disparar Button and Actions */}
+                                    <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                                        <button
+                                            type="button"
+                                            disabled={isSendingBroadcast || !broadcastText.trim() || broadcastRecipients.length === 0}
+                                            onClick={handleExecuteBroadcast}
+                                            className={`flex-1 py-3.5 px-6 font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${
+                                                isSendingBroadcast || !broadcastText.trim() || broadcastRecipients.length === 0
+                                                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-700 hover:to-rose-700 active-scale border border-red-500'
+                                            }`}
+                                        >
+                                            {isSendingBroadcast ? (
+                                                <>
+                                                    <i className="fas fa-spinner fa-spin text-amber-300"></i>
+                                                    <span>DISPARANDO MENSAGEM ({broadcastRecipients.length})...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="fas fa-paper-plane text-amber-300"></i>
+                                                    <span>DISPARAR MENSAGEM PARA TODOS OS {broadcastRecipients.length} CADASTRADOS</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBroadcastTitle('COMUNICADO OFICIAL');
+                                                setBroadcastText('');
+                                            }}
+                                            className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wider transition-all"
+                                        >
+                                            LIMPAR
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Preview and Recipients Column (5 cols) */}
+                                <div className="lg:col-span-5 space-y-6">
+                                    {/* Preview Card */}
+                                    <div className="bg-white border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <h4 className="font-black uppercase text-[10px] text-slate-700 flex items-center gap-1.5">
+                                                <i className="fas fa-eye text-red-600"></i>
+                                                Pré-Visualização do Destinatário
+                                            </h4>
+                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                                Visual no Chat do Profissional
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-slate-100 p-4 rounded-xl space-y-3 border border-slate-200">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-black uppercase text-red-600 flex items-center gap-1">
+                                                    <i className="fas fa-bullhorn text-red-600 animate-pulse"></i>
+                                                    <span>Comunicado do Sistema</span>
+                                                </span>
+                                                <span className="text-[8px] font-medium text-slate-400">
+                                                    Hoje, às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+
+                                            <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-xl rounded-tl-none p-4 shadow-md border-2 border-red-500">
+                                                <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-white/25 text-[9px] font-black uppercase text-amber-300 tracking-wider">
+                                                    <i className="fas fa-bullhorn"></i>
+                                                    <span>{broadcastTitle.trim() || 'COMUNICADO OFICIAL'}</span>
+                                                </div>
+                                                <p className="text-xs font-bold leading-relaxed whitespace-pre-wrap">
+                                                    {broadcastText.trim() || 'O conteúdo da sua mensagem aparecerá aqui em tempo real...'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* List of Targeted Recipients Preview */}
+                                    <div className="bg-white border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <h4 className="font-black uppercase text-[10px] text-slate-700 flex items-center gap-1.5">
+                                                <i className="fas fa-user-check text-emerald-600"></i>
+                                                Destinatários Selecionados ({filteredBroadcastRecipientsPreview.length})
+                                            </h4>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase">
+                                                {broadcastTarget === 'all' ? 'Todos' : broadcastTarget.toUpperCase()}
+                                            </span>
+                                        </div>
+
+                                        <input
+                                            type="text"
+                                            placeholder="BUSCAR DESTINATÁRIO..."
+                                            value={broadcastSearchRecipient}
+                                            onChange={(e) => setBroadcastSearchRecipient(e.target.value)}
+                                            className="w-full p-2 border border-slate-200 text-[10px] font-bold uppercase outline-none focus:border-red-600 bg-slate-50"
+                                        />
+
+                                        <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
+                                            {filteredBroadcastRecipientsPreview.length === 0 ? (
+                                                <p className="text-center py-4 text-[10px] font-bold text-slate-400 uppercase">
+                                                    Nenhum cadastrado encontrado com este filtro.
+                                                </p>
+                                            ) : (
+                                                filteredBroadcastRecipientsPreview.map(doc => (
+                                                    <div key={doc.id} className="p-2 bg-slate-50 border border-slate-200 rounded flex items-center justify-between text-xs">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <img src={doc.image} className="w-6 h-6 rounded-full object-cover border border-slate-300 shrink-0" alt={doc.name} referrerPolicy="no-referrer" />
+                                                            <div className="truncate">
+                                                                <p className="font-black text-[10px] uppercase text-slate-900 truncate">{doc.name}</p>
+                                                                <span className="text-[8px] font-bold text-slate-500 uppercase">
+                                                                    {doc.isClinic ? 'Clínica (PJ)' : 'Profissional (PF)'} • {doc.city || 'Cidade N/A'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`px-1.5 py-0.5 text-[7px] font-black uppercase rounded shrink-0 ${
+                                                            doc.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
+                                                            doc.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
+                                                        }`}>
+                                                            {doc.status}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Historic Broadcasts Log */}
+                            <div className="bg-white border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+                                    <h4 className="font-black uppercase text-xs text-slate-900 flex items-center gap-2">
+                                        <i className="fas fa-history text-slate-700"></i>
+                                        Histórico de Mensagens Disparadas em Massa ({sentBroadcastsHistory.length})
+                                    </h4>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase">Registro em Tempo Real</span>
+                                </div>
+
+                                {sentBroadcastsHistory.length === 0 ? (
+                                    <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 space-y-2">
+                                        <i className="fas fa-bullhorn text-3xl text-slate-300"></i>
+                                        <p className="text-xs font-black uppercase text-slate-600">Nenhum disparo em massa registrado ainda.</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Envie seu primeiro comunicado utilizando o formulário acima.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {sentBroadcastsHistory.map((hist, idx) => (
+                                            <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-lg hover:border-slate-300 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                <div className="space-y-1.5 flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded flex items-center gap-1">
+                                                            <i className="fas fa-bullhorn text-amber-300"></i>
+                                                            {hist.title}
+                                                        </span>
+                                                        <span className="text-[9px] font-bold text-slate-500">
+                                                            {hist.createdAt ? new Date(hist.createdAt).toLocaleString('pt-BR') : 'Data recente'}
+                                                        </span>
+                                                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[8px] font-black uppercase rounded">
+                                                            {hist.recipientsCount} DESTINATÁRIO{hist.recipientsCount === 1 ? '' : 'S'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-medium text-slate-800 leading-relaxed line-clamp-2">
+                                                        {hist.text}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setBroadcastTitle(hist.title);
+                                                            setBroadcastText(hist.text);
+                                                            showNotification("Mensagem carregada no formulário de disparo!");
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                        }}
+                                                        className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-900 hover:text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                                                    >
+                                                        <i className="fas fa-redo"></i> REUTILIZAR TEXTO
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -6106,6 +6659,161 @@
                             </div>
                         </div>
                     )}
+
+                    {/* Modal Rápido de Disparo de Mensagem em Massa */}
+                    {showBroadcastModal && (
+                        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+                            <div className="bg-white w-full max-w-2xl border-4 border-red-600 shadow-2xl animate-slide-up overflow-hidden my-auto">
+                                <div className="bg-gradient-to-r from-slate-900 to-red-950 text-white p-4 sm:p-5 flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
+                                            <i className="fas fa-bullhorn text-amber-300 text-sm animate-pulse"></i>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black uppercase tracking-wider text-xs sm:text-sm">
+                                                Disparar Mensagem para Todos
+                                            </h3>
+                                            <p className="text-[9px] text-red-200 font-bold uppercase">
+                                                {broadcastRecipients.length} de {(doctors || []).length} cadastrados selecionados
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setShowBroadcastModal(false)} className="text-white/80 hover:text-white transition-colors p-1">
+                                        <i className="fas fa-times text-lg"></i>
+                                    </button>
+                                </div>
+
+                                <div className="p-4 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                                    {/* Segment Selector */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black uppercase text-slate-900">Destinatários do Disparo</label>
+                                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                                            {[
+                                                { id: 'all', label: `Todos (${(doctors || []).length})` },
+                                                { id: 'active', label: `Ativos (${activeCount})` },
+                                                { id: 'pending', label: `Pendentes (${pendingCount})` },
+                                                { id: 'suspended', label: `Suspensos (${suspendedCount})` },
+                                                { id: 'clinic', label: `PJ (${(doctors || []).filter(d => d.isClinic).length})` },
+                                                { id: 'pf', label: `PF (${(doctors || []).filter(d => !d.isClinic).length})` }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.id}
+                                                    type="button"
+                                                    onClick={() => setBroadcastTarget(opt.id)}
+                                                    className={`py-1.5 px-2 text-[8px] font-black uppercase border rounded transition-all ${
+                                                        broadcastTarget === opt.id 
+                                                            ? 'bg-red-600 text-white border-red-600 shadow-sm' 
+                                                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                    }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Templates */}
+                                    <div className="space-y-1">
+                                        <label className="text-[8px] font-black uppercase text-slate-500">Modelos Prontos</label>
+                                        <div className="flex flex-wrap gap-1">
+                                            {[
+                                                { label: "📢 Boas-vindas", title: "BOAS-VINDAS AO MEDAGENDAR", text: "Olá parceiro(a)! Seu cadastro no MedAgendar está ativo. Configure seus horários e valores na aba 'HORÁRIOS' do seu painel para disponibilizar consultas aos pacientes no site." },
+                                                { label: "⏰ Horários", title: "LEMBRETE: ATUALIZAÇÃO DA GRADE DE HORÁRIOS", text: "Prezado(a) profissional, solicitamos que revise sua grade de horários disponíveis no painel para manter suas vagas de consulta sempre sincronizadas." },
+                                                { label: "🛠️ Manutenção", title: "AVISO DE MANUTENÇÃO PROGRAMADA", text: "Informamos que a plataforma passará por melhorias e atualizações técnicas preventivas hoje às 23h. Suas consultas agendadas continuam seguras e operando normalmente." }
+                                            ].map((tpl, i) => (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBroadcastTitle(tpl.title);
+                                                        setBroadcastText(tpl.text);
+                                                    }}
+                                                    className="px-2 py-0.5 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[8px] font-black uppercase tracking-wider border border-slate-200 rounded"
+                                                >
+                                                    {tpl.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Title */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase text-slate-900">Título do Comunicado</label>
+                                        <input
+                                            type="text"
+                                            value={broadcastTitle}
+                                            onChange={(e) => setBroadcastTitle(e.target.value.toUpperCase())}
+                                            placeholder="TÍTULO DO COMUNICADO"
+                                            className="w-full p-2.5 border border-slate-200 font-black text-xs uppercase outline-none focus:border-red-600 bg-slate-50"
+                                        />
+                                    </div>
+
+                                    {/* Text */}
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between">
+                                            <label className="text-[9px] font-black uppercase text-slate-900">Mensagem</label>
+                                            <span className="text-[8px] text-slate-400 font-bold">{broadcastText.length} caracteres</span>
+                                        </div>
+                                        <textarea
+                                            rows={4}
+                                            value={broadcastText}
+                                            onChange={(e) => setBroadcastText(e.target.value)}
+                                            placeholder="Digite aqui a mensagem que será entregue a todos os cadastrados..."
+                                            className="w-full p-3 border border-slate-200 font-medium text-xs leading-relaxed outline-none focus:border-red-600 bg-slate-50 resize-y"
+                                        />
+                                    </div>
+
+                                    {/* Visual Preview */}
+                                    <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 space-y-1.5">
+                                        <p className="text-[8px] font-black uppercase text-slate-500">Prévia no Chat do Profissional:</p>
+                                        <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-lg p-3 text-xs shadow-sm">
+                                            <div className="flex items-center gap-1 text-[8px] font-black uppercase text-amber-300 border-b border-white/20 pb-1 mb-1">
+                                                <i className="fas fa-bullhorn"></i>
+                                                <span>{broadcastTitle || 'COMUNICADO OFICIAL'}</span>
+                                            </div>
+                                            <p className="font-bold whitespace-pre-wrap">{broadcastText || 'Sua mensagem...'}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Modal Actions */}
+                                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                                        <button
+                                            type="button"
+                                            disabled={isSendingBroadcast || !broadcastText.trim() || broadcastRecipients.length === 0}
+                                            onClick={handleExecuteBroadcast}
+                                            className={`flex-1 py-3 px-4 font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
+                                                isSendingBroadcast || !broadcastText.trim() || broadcastRecipients.length === 0
+                                                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-red-600 to-rose-600 text-white hover:from-red-700 hover:to-rose-700 active-scale'
+                                            }`}
+                                        >
+                                            {isSendingBroadcast ? (
+                                                <>
+                                                    <i className="fas fa-spinner fa-spin text-amber-300"></i>
+                                                    <span>DISPARANDO...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="fas fa-paper-plane text-amber-300"></i>
+                                                    <span>DISPARAR PARA {broadcastRecipients.length} CADASTRADOS</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowBroadcastModal(false);
+                                                setAdminTab('broadcast');
+                                            }}
+                                            className="px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-[10px] tracking-wider transition-all"
+                                        >
+                                            ABRIR CENTRAL COMPLETA
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -6321,6 +7029,30 @@
                 }
             };
 
+            const handleSendBroadcastMessage = async ({ targetDoctorIds, broadcastTitle, text, senderType = 'admin' }) => {
+                try {
+                    const now = new Date().toISOString();
+                    const promises = targetDoctorIds.map(async (docId) => {
+                        const targetDoc = (doctors || []).find(d => d.id === docId);
+                        const newMsgRef = doc(collection(db, 'support_messages'));
+                        return setDoc(newMsgRef, {
+                            id: newMsgRef.id,
+                            doctorId: docId,
+                            doctorName: targetDoc?.name || 'Profissional',
+                            senderType: senderType,
+                            isBroadcast: true,
+                            broadcastTitle: broadcastTitle || 'COMUNICADO OFICIAL',
+                            text: text,
+                            createdAt: now
+                        });
+                    });
+                    await Promise.all(promises);
+                } catch (e) {
+                    handleFirestoreError(e, OperationType.WRITE, 'support_messages');
+                    throw e;
+                }
+            };
+
             const selectedDoctor = doctors.find(d => d.id === selectedDoctorId);
 
             return (
@@ -6367,6 +7099,7 @@
                                     onUpdateAppointment={handleUpdateAppointment}
                                     supportMessages={supportMessages}
                                     onSendSupportMessage={handleSendSupportMessage}
+                                    onSendBroadcastMessage={handleSendBroadcastMessage}
                                     isAuthenticated={isAdminAuthenticated} 
                                     onAuthenticate={handleAdminAuth} 
                                     showNotification={showNotification} 
